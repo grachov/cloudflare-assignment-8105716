@@ -1,0 +1,189 @@
+[
+  {
+    "seq": 0,
+    "kind": "MATCHED",
+    "invoice_id": "INV-1001",
+    "payment_id": null,
+    "expected_minor": 4900,
+    "actual_minor": 4900,
+    "delta_minor": 0,
+    "currency": "USD",
+    "detail": "payments=1"
+  },
+  {
+    "seq": 1,
+    "kind": "MATCHED",
+    "invoice_id": "INV-1002",
+    "payment_id": null,
+    "expected_minor": 4900,
+    "actual_minor": 4900,
+    "delta_minor": 0,
+    "currency": "USD",
+    "detail": "payments=1"
+  },
+  {
+    "seq": 2,
+    "kind": "DUPLICATE_PAYMENT",
+    "invoice_id": "INV-1002",
+    "payment_id": "P2003",
+    "expected_minor": 0,
+    "actual_minor": 4900,
+    "delta_minor": 4900,
+    "currency": "USD",
+    "detail": "settled_by=P2002"
+  },
+  {
+    "seq": 3,
+    "kind": "MATCHED",
+    "invoice_id": "INV-1003",
+    "payment_id": null,
+    "expected_minor": 4900,
+    "actual_minor": 4900,
+    "delta_minor": 0,
+    "currency": "USD",
+    "detail": "payments=1"
+  },
+  {
+    "seq": 4,
+    "kind": "MATCHED",
+    "invoice_id": "INV-1004",
+    "payment_id": null,
+    "expected_minor": 12000,
+    "actual_minor": 12000,
+    "delta_minor": 0,
+    "currency": "USD",
+    "detail": "payments=2"
+  },
+  {
+    "seq": 5,
+    "kind": "UNDERPAID",
+    "invoice_id": "INV-1005",
+    "payment_id": null,
+    "expected_minor": 12000,
+    "actual_minor": 5000,
+    "delta_minor": 7000,
+    "currency": "USD",
+    "detail": "payments=1"
+  },
+  {
+    "seq": 6,
+    "kind": "UNPAID_OVERDUE",
+    "invoice_id": "INV-1007",
+    "payment_id": null,
+    "expected_minor": 1900,
+    "actual_minor": 0,
+    "delta_minor": 1900,
+    "currency": "USD",
+    "detail": "payments=0"
+  },
+  {
+    "seq": 7,
+    "kind": "UNPAID_OVERDUE",
+    "invoice_id": "INV-1008",
+    "payment_id": null,
+    "expected_minor": 1900,
+    "actual_minor": 0,
+    "delta_minor": 1900,
+    "currency": "USD",
+    "detail": "payments=0"
+  },
+  {
+    "seq": 8,
+    "kind": "OVERPAID",
+    "invoice_id": "INV-1009",
+    "payment_id": null,
+    "expected_minor": 1900,
+    "actual_minor": 2500,
+    "delta_minor": 600,
+    "currency": "USD",
+    "detail": "payments=1"
+  },
+  {
+    "seq": 9,
+    "kind": "MATCHED",
+    "invoice_id": "INV-1010",
+    "payment_id": null,
+    "expected_minor": 25000,
+    "actual_minor": 25000,
+    "delta_minor": 0,
+    "currency": "EUR",
+    "detail": "payments=3"
+  },
+  {
+    "seq": 10,
+    "kind": "OVERPAID",
+    "invoice_id": "INV-1011",
+    "payment_id": null,
+    "expected_minor": 25000,
+    "actual_minor": 26000,
+    "delta_minor": 1000,
+    "currency": "EUR",
+    "detail": "payments=2"
+  },
+  {
+    "seq": 11,
+    "kind": "DUPLICATE_PAYMENT",
+    "invoice_id": "INV-1011",
+    "payment_id": "P2013",
+    "expected_minor": 0,
+    "actual_minor": 25000,
+    "delta_minor": 25000,
+    "currency": "EUR",
+    "detail": "settled_by=P2012"
+  },
+  {
+    "seq": 12,
+    "kind": "UNDERPAID",
+    "invoice_id": "INV-1012",
+    "payment_id": null,
+    "expected_minor": 25000,
+    "actual_minor": 24000,
+    "delta_minor": 1000,
+    "currency": "EUR",
+    "detail": "payments=1;not_yet_due"
+  },
+  {
+    "seq": 13,
+    "kind": "MATCHED",
+    "invoice_id": "INV-1013",
+    "payment_id": null,
+    "expected_minor": 99000,
+    "actual_minor": 99000,
+    "delta_minor": 0,
+    "currency": "USD",
+    "detail": "payments=1"
+  },
+  {
+    "seq": 14,
+    "kind": "UNPAID_OVERDUE",
+    "invoice_id": "INV-1014",
+    "payment_id": null,
+    "expected_minor": 99000,
+    "actual_minor": 0,
+    "delta_minor": 99000,
+    "currency": "USD",
+    "detail": "payments=0"
+  },
+  {
+    "seq": 15,
+    "kind": "UNMATCHED_PAYMENT",
+    "invoice_id": null,
+    "payment_id": "P2017",
+    "expected_minor": 0,
+    "actual_minor": 1900,
+    "delta_minor": 1900,
+    "currency": "USD",
+    "detail": "ref=null"
+  },
+  {
+    "seq": 16,
+    "kind": "UNMATCHED_PAYMENT",
+    "invoice_id": null,
+    "payment_id": "P2018",
+    "expected_minor": 0,
+    "actual_minor": 4900,
+    "delta_minor": 4900,
+    "currency": "USD",
+    "detail": "ref=INV-9999"
+  }
+]

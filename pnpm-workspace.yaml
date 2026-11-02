@@ -1,0 +1,11 @@
+engineStrict: true
+allowBuilds:
+  esbuild: true
+  workerd: true
+  lefthook: true
+  # postinstall only prints a funding banner (pulled in via agents -> mimetext -> @babel/runtime-corejs3)
+  core-js-pure: false
+minimumReleaseAgeExclude:
+  - '@ai-sdk/gateway@4.0.132'
+  - '@ai-sdk/react@4.0.163'
+  - ai@7.0.159

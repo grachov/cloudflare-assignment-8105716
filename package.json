@@ -1,0 +1,51 @@
+{
+  "name": "recon-assistant",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "vite dev",
+    "build": "tsc -b && vite build",
+    "preview": "pnpm run build && vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc -b --noEmit",
+    "cf-typegen": "wrangler types",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "db:seed:local": "wrangler d1 execute DB --local --file=seed/seed.sql",
+    "db:seed:remote": "wrangler d1 execute DB --remote --file=seed/seed.sql",
+    "setup:local": "pnpm run db:migrate:local && pnpm run db:seed:local",
+    "deploy": "pnpm run build && wrangler deploy",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@ai-sdk/react": "4.0.163",
+    "@cloudflare/ai-chat": "0.12.2",
+    "@hono/zod-validator": "0.9.1",
+    "agents": "0.32.0",
+    "ai": "7.0.159",
+    "hono": "4.13.14",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "1.66.0",
+    "@cloudflare/vitest-plugin": "1.4.11",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "lefthook": "2.2.2",
+    "prettier": "3.9.10",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "4.1.12",
+    "wrangler": "4.156.0"
+  }
+}

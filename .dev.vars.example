@@ -1,0 +1,6 @@
+# Copy to .dev.vars for `pnpm run dev`; in production set both with `wrangler secret put <NAME>`.
+# Passcode the login form checks (POST /api/session).
+DEMO_PASSCODE=
+# HMAC key for the recon_session cookie and the passcode compare; use a long random value, e.g. `openssl rand -base64 32`.
+SESSION_SECRET=
+# Tests do not read this file: vitest.config.ts binds fixed, non-secret test values.

@@ -1,0 +1,48 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "recon-assistant",
+  "main": "src/server/index.ts",
+  "compatibility_date": "2026-10-30",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/agents/*"],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "recon-db",
+      // Placeholder for local dev and tests; set to the id printed by `wrangler d1 create recon-db` before a remote deploy.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "ChatAgent", "class_name": "ChatAgent" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ChatAgent"] }],
+  "workflows": [
+    {
+      "name": "recon-workflow",
+      "binding": "RECON",
+      "class_name": "ReconWorkflow",
+    },
+  ],
+  "ai": { "binding": "AI" },
+  "ratelimits": [
+    {
+      "name": "CHAT_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 10, "period": 60 },
+    },
+    {
+      "name": "LOGIN_LIMITER",
+      "namespace_id": "1002",
+      "simple": { "limit": 5, "period": 60 },
+    },
+  ],
+  "vars": { "AS_OF_DATE": "2026-10-15" },
+  // Set with `wrangler secret put`; locally from .dev.vars (see .dev.vars.example). Tests bind fixed values in vitest.config.ts.
+  "secrets": { "required": ["DEMO_PASSCODE", "SESSION_SECRET"] },
+  "observability": { "enabled": true },
+}
