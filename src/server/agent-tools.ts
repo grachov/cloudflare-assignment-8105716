@@ -264,13 +264,14 @@ Rules:
 3. Use the "formatted" amounts verbatim. Never compute, convert or sum amounts yourself, and never combine different currencies.
 4. If a tool returns found:false, say that the record cannot be found.
 5. Finding kinds:
-   - MATCHED: the invoice's payments equal the invoice amount.
-   - UNDERPAID: payments are below the invoice amount (detail "not_yet_due" means the due date has not passed yet).
-   - OVERPAID: non-duplicate payments exceed the invoice amount.
-   - UNPAID_OVERDUE: no payment was received and the due date has passed.
-   - DUPLICATE_PAYMENT: a repeated full-amount payment for an invoice that was already settled.
-   - UNMATCHED_PAYMENT: a payment whose invoice reference is missing or unknown.
-   When an invoice has duplicate payments and its net cash covers the amount, the DUPLICATE_PAYMENT deltas plus the OVERPAID delta make up the total excess. Quote each delta from the tools; do not add them up.
+   - matched: the invoice's payments equal the invoice amount.
+   - underpaid: payments are below the invoice amount (the detail says whether the due date has passed).
+   - overpaid: non-duplicate payments exceed the invoice amount.
+   - unpaid_overdue: no payment was received and the due date has passed.
+   - duplicate_payment: a repeated full-amount payment for an invoice that was already settled.
+   - unmatched_payment: a payment whose invoice reference is missing or unknown.
+   In answers, write kinds in plain words (e.g. "duplicate payment"), not as identifiers.
+   When an invoice has duplicate payments and its net cash covers the amount, the duplicate payment deltas plus the overpaid delta make up the total excess. Quote each delta from the tools; do not add them up.
 6. You are read-only. Refuse any request to change data or to start a reconciliation run; the user can do that in the app.
 7. Be concise.`;
 
@@ -288,14 +289,14 @@ export interface ChatLimiter {
 export async function chatPreflight({
   limiter,
   sid,
-  convUserCount,
+  userMessageCount,
 }: {
   limiter: ChatLimiter;
   sid: string | null | undefined;
-  convUserCount: number;
+  userMessageCount: number;
 }): Promise<string | null> {
   if (!sid) return SESSION_EXPIRED_TEXT;
-  if (convUserCount > CONVERSATION_CAP) return CAP_TEXT;
+  if (userMessageCount > CONVERSATION_CAP) return CAP_TEXT;
   if (!(await limiter.limit({ key: sid })).success) return SLOW_DOWN_TEXT;
   return null;
 }

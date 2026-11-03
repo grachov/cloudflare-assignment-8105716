@@ -72,8 +72,8 @@ describe('agent tools against the seeded D1', () => {
       formatted: '€10.00',
     });
     expect(res.findings.map((f) => [f.kind, f.paymentId])).toEqual([
-      ['OVERPAID', null],
-      ['DUPLICATE_PAYMENT', 'P2013'],
+      ['overpaid', null],
+      ['duplicate_payment', 'P2013'],
     ]);
     const formatted = res.findings.map((f) => f.delta.formatted);
     expect(formatted).toContain('€250.00');
@@ -86,20 +86,20 @@ describe('agent tools against the seeded D1', () => {
     ).toEqual({ found: false, invoiceId: 'INV-9999' });
   });
 
-  it('getRunSummary returns per-currency OVERPAID rows and never sums across currencies', async () => {
+  it('getRunSummary returns per-currency overpaid rows and never sums across currencies', async () => {
     const res = await call(tools(), 'getRunSummary', {});
     if (!res.found) throw new Error('no complete run');
     expect(res.run.id).toBe(runId);
-    const overpaid = res.byKind.filter((r) => r.kind === 'OVERPAID');
+    const overpaid = res.byKind.filter((r) => r.kind === 'overpaid');
     expect(overpaid).toEqual([
       {
-        kind: 'OVERPAID',
+        kind: 'overpaid',
         currency: 'USD',
         count: 1,
         totalDelta: { minor: 600, formatted: '$6.00' },
       },
       {
-        kind: 'OVERPAID',
+        kind: 'overpaid',
         currency: 'EUR',
         count: 1,
         totalDelta: { minor: 1000, formatted: '€10.00' },
@@ -125,7 +125,7 @@ describe('agent tools against the seeded D1', () => {
 
     const dup = await call(tools(), 'listFindings', {
       runId,
-      kind: 'DUPLICATE_PAYMENT',
+      kind: 'duplicate_payment',
       limit: 50,
     });
     if (!dup.found) throw new Error('run not found');
@@ -154,7 +154,7 @@ describe('agent tools against the seeded D1', () => {
       const t = tools();
       await call(t, 'listRuns', { limit: 5 });
       await call(t, 'getRunSummary', {});
-      await call(t, 'listFindings', { kind: 'OVERPAID', limit: 50 });
+      await call(t, 'listFindings', { kind: 'overpaid', limit: 50 });
       await call(t, 'getInvoice', { invoiceId: 'INV-1011' });
       await call(t, 'getInvoice', { invoiceId: 'INV-9999' });
       const sqls = prepare.mock.calls.map(([sql]) => sql);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { formatMinor } from '../../shared/money';
-import { api, type FindingDTO } from '../api';
+import { api, type FindingDTO, type FindingKind } from '../api';
+import { KIND_LABELS } from '../labels';
 
 export function FindingsView({
   runId,
@@ -37,7 +38,7 @@ export function FindingsView({
   if (findings.length === 0) return <p className="muted">No findings.</p>;
 
   // Groups keep the order in which kinds first appear (seq order).
-  const groups = new Map<string, FindingDTO[]>();
+  const groups = new Map<FindingKind, FindingDTO[]>();
   for (const f of findings) {
     const list = groups.get(f.kind);
     if (list) list.push(f);
@@ -49,12 +50,12 @@ export function FindingsView({
       {[...groups].map(([kind, rows]) => (
         <section key={kind} aria-labelledby={`f-${kind}`}>
           <h4 id={`f-${kind}`}>
-            {kind} <span className="count">{rows.length}</span>
+            {KIND_LABELS[kind]} <span className="count">{rows.length}</span>
           </h4>
           <div
             className="table-wrap"
             role="region"
-            aria-label={`${kind} findings`}
+            aria-label={`${KIND_LABELS[kind]} findings`}
             tabIndex={0}
           >
             <table>
@@ -75,7 +76,7 @@ export function FindingsView({
               </thead>
               <tbody>
                 {rows.map((f) => (
-                  <tr key={f.id ?? f.seq}>
+                  <tr key={f.id}>
                     <th scope="row" className="mono">
                       {[f.invoice_id, f.payment_id].filter(Boolean).join(' / ')}
                     </th>

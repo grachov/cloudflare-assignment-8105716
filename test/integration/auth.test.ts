@@ -64,6 +64,14 @@ describe('agent Origin check', () => {
     expect(res.status).toBe(403);
   });
 
+  it('400s an authenticated agent request whose conversation id is not a UUID', async () => {
+    const Cookie = await login();
+    expect((await raw(`${AGENT}/get-messages`, { Cookie })).status).toBe(400);
+    const ws = await raw(AGENT, { ...WS, Cookie, Origin: ORIGIN });
+    expect(ws.status).toBe(400);
+    expect(ws.webSocket).toBeNull();
+  });
+
   it('allows a same-origin HTTP agent GET with no Origin and a valid cookie (AC15 history hydration)', async () => {
     const res = await raw(
       `${ORIGIN}/agents/chat-agent/${crypto.randomUUID()}/get-messages`,

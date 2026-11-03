@@ -11,7 +11,7 @@ const INVOICES_SQL = `SELECT i.id, s.customer_name AS customer, i.period_start, 
     COALESCE((SELECT SUM(p.amount_minor) FROM payments p
               WHERE p.invoice_ref = i.id AND substr(p.received_at, 1, 10) <= ?1), 0) AS paid_minor,
     COALESCE((SELECT SUM(f.delta_minor) FROM findings f
-              WHERE f.run_id = ?2 AND f.invoice_id = i.id AND f.kind = 'DUPLICATE_PAYMENT'), 0) AS duplicate_minor,
+              WHERE f.run_id = ?2 AND f.invoice_id = i.id AND f.kind = 'duplicate_payment'), 0) AS duplicate_minor,
     i.currency,
     (SELECT f.kind FROM findings f
      WHERE f.run_id = ?2 AND f.invoice_id = i.id AND f.payment_id IS NULL ORDER BY f.seq LIMIT 1) AS finding_kind
@@ -31,7 +31,7 @@ export const invoiceRoutes = new Hono<AppEnv>().get('/', async (c) => {
     .all<Omit<InvoiceDTO, 'status'> & { finding_kind: InvoiceStatus | null }>();
   const invoices: InvoiceDTO[] = results.map(({ finding_kind, ...row }) => ({
     ...row,
-    status: latestRunId === null ? 'NOT_RECONCILED' : (finding_kind ?? 'OPEN'),
+    status: latestRunId === null ? 'not_reconciled' : (finding_kind ?? 'open'),
   }));
   return c.json({ asOfDate, latestRunId, invoices });
 });

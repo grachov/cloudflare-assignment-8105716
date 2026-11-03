@@ -1,64 +1,21 @@
-import type { FindingKind } from '../shared/types';
+import type {
+  FindingDTO,
+  FindingKind,
+  InvoicesResponse,
+  RunDTO,
+  RunMode,
+} from '../shared/types';
 
-export type InvoiceStatus =
-  | 'MATCHED'
-  | 'UNDERPAID'
-  | 'OVERPAID'
-  | 'UNPAID_OVERDUE'
-  | 'OPEN'
-  | 'NOT_RECONCILED';
-
-export interface InvoiceDTO {
-  id: string;
-  customer: string;
-  period_start: string;
-  period_end: string;
-  amount_minor: number;
-  paid_minor: number;
-  duplicate_minor: number;
-  currency: string;
-  status: InvoiceStatus;
-}
-
-export interface InvoicesResponse {
-  asOfDate: string;
-  latestRunId: string | null;
-  invoices: InvoiceDTO[];
-}
-
-export type RunMode = 'normal' | 'simulate_failure';
-export type RunStatus = 'queued' | 'running' | 'complete' | 'errored';
-export type RunStep = 'load-and-reconcile' | 'write-findings' | 'complete';
-
-export interface RunDTO {
-  id: string;
-  mode: RunMode;
-  status: RunStatus;
-  current_step: string | null;
-  steps: RunStep[];
-  as_of_date: string;
-  dataset_hash: string | null;
-  write_attempts: number;
-  failure_injected: boolean | number;
-  findings_count: number;
-  summary: { kind: FindingKind; currency: string; count: number }[];
-  error: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-}
-
-export interface FindingDTO {
-  id: number;
-  seq: number;
-  kind: FindingKind;
-  invoice_id: string | null;
-  payment_id: string | null;
-  expected_minor: number;
-  actual_minor: number;
-  delta_minor: number;
-  currency: string;
-  detail: string;
-}
+export type {
+  FindingDTO,
+  FindingKind,
+  InvoiceDTO,
+  InvoiceStatus,
+  InvoicesResponse,
+  RunDTO,
+  RunMode,
+  RunStatus,
+} from '../shared/types';
 
 export interface SessionInfo {
   authenticated: boolean;
@@ -82,7 +39,9 @@ export function setOnUnauthorized(cb: (() => void) | null): void {
 async function request<T>(
   path: string,
   init: RequestInit = {},
-  opts: { skip401?: boolean } = {},
+  // handlesAuth: the caller deals with an unauthenticated response itself (the session endpoints),
+  // so it must not trigger the app-wide "signed out" handler.
+  opts: { handlesAuth?: boolean } = {},
 ): Promise<{ status: number; body: T }> {
   const headers = new Headers(init.headers);
   if (init.body !== undefined) headers.set('Content-Type', 'application/json');
@@ -91,7 +50,7 @@ async function request<T>(
     headers,
     credentials: 'same-origin',
   });
-  if (res.status === 401 && !opts.skip401) onUnauthorized?.();
+  if (res.status === 401 && !opts.handlesAuth) onUnauthorized?.();
   const text = res.status === 204 ? '' : await res.text();
   let body: unknown = null;
   if (text) {
@@ -116,16 +75,18 @@ export const api = {
     request<{ ok: true }>(
       '/api/session',
       { method: 'POST', body: JSON.stringify({ passcode }) },
-      { skip401: true },
+      { handlesAuth: true },
     ).then((r) => r.body),
   getSession: () =>
-    request<SessionInfo>('/api/session', {}, { skip401: true }).then(
+    request<SessionInfo>('/api/session', {}, { handlesAuth: true }).then(
       (r) => r.body,
     ),
   logout: () =>
-    request<null>('/api/session', { method: 'DELETE' }, { skip401: true }).then(
-      () => undefined,
-    ),
+    request<null>(
+      '/api/session',
+      { method: 'DELETE' },
+      { handlesAuth: true },
+    ).then(() => undefined),
   getInvoices: () =>
     request<InvoicesResponse>('/api/invoices').then((r) => r.body),
   startRun: (key: string, mode: RunMode) =>

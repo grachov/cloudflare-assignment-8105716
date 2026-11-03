@@ -103,12 +103,12 @@ describe('reconcile: seed dataset', () => {
     for (const f of expectedFindings)
       counts[f.kind] = (counts[f.kind] ?? 0) + 1;
     expect(counts).toEqual({
-      MATCHED: 6,
-      UNDERPAID: 2,
-      OVERPAID: 2,
-      DUPLICATE_PAYMENT: 2,
-      UNPAID_OVERDUE: 3,
-      UNMATCHED_PAYMENT: 2,
+      matched: 6,
+      underpaid: 2,
+      overpaid: 2,
+      duplicate_payment: 2,
+      unpaid_overdue: 3,
+      unmatched_payment: 2,
     });
   });
 
@@ -150,66 +150,68 @@ describe('reconcile: seed dataset', () => {
 });
 
 describe('reconcile: per-kind', () => {
-  it('MATCHED: one exact payment', () => {
+  it('matched: one exact payment', () => {
     const [f] = reconcile(
       ds([inv('I1', 1000, PAST)], [pay('P1', 'I1', 1000, '2026-09-10')]),
       AS_OF,
     );
     expect(f).toMatchObject({
-      kind: 'MATCHED',
+      kind: 'matched',
       expected_minor: 1000,
       actual_minor: 1000,
       delta_minor: 0,
-      detail: 'payments=1',
+      detail: 'Paid in full by 1 payment',
     });
   });
 
-  it('UNDERPAID after due date: delta = amount - paid, no not_yet_due', () => {
+  it('underpaid after due date: delta = amount - paid, detail says the due date passed', () => {
     const [f] = reconcile(
       ds([inv('I1', 1000, PAST)], [pay('P1', 'I1', 300, '2026-09-10')]),
       AS_OF,
     );
     expect(f).toMatchObject({
-      kind: 'UNDERPAID',
+      kind: 'underpaid',
       actual_minor: 300,
       delta_minor: 700,
-      detail: 'payments=1',
+      detail: 'Partly paid by 1 payment; due date 2026-09-15 has passed',
     });
   });
 
-  it('UNDERPAID before the due date has detail containing not_yet_due', () => {
+  it('underpaid before the due date says it is not yet due', () => {
     const [f] = reconcile(
       ds([inv('I1', 1000, '2026-10-20')], [pay('P1', 'I1', 300, '2026-10-01')]),
       AS_OF,
     );
-    expect(f.kind).toBe('UNDERPAID');
-    expect(f.detail).toContain('not_yet_due');
+    expect(f.kind).toBe('underpaid');
+    expect(f.detail).toBe(
+      'Partly paid by 1 payment; not yet due (due 2026-10-20)',
+    );
   });
 
-  it('OVERPAID: delta = paid - amount', () => {
+  it('overpaid: delta = paid - amount', () => {
     const [f] = reconcile(
       ds([inv('I1', 1000, PAST)], [pay('P1', 'I1', 1600, '2026-09-10')]),
       AS_OF,
     );
     expect(f).toMatchObject({
-      kind: 'OVERPAID',
+      kind: 'overpaid',
       actual_minor: 1600,
       delta_minor: 600,
     });
   });
 
-  it('UNPAID_OVERDUE: no payment and due < as_of', () => {
+  it('unpaid_overdue: no payment and due < as_of', () => {
     const [f] = reconcile(ds([inv('I1', 1000, PAST)], []), AS_OF);
     expect(f).toMatchObject({
-      kind: 'UNPAID_OVERDUE',
+      kind: 'unpaid_overdue',
       expected_minor: 1000,
       actual_minor: 0,
       delta_minor: 1000,
-      detail: 'payments=0',
+      detail: 'No payment received by the due date 2026-09-15',
     });
   });
 
-  it('UNMATCHED_PAYMENT: null and unknown refs', () => {
+  it('unmatched_payment: null and unknown refs', () => {
     const out = reconcile(
       ds(
         [],
@@ -223,25 +225,25 @@ describe('reconcile: per-kind', () => {
     expect(out).toEqual([
       {
         seq: 0,
-        kind: 'UNMATCHED_PAYMENT',
+        kind: 'unmatched_payment',
         invoice_id: null,
         payment_id: 'P1',
         expected_minor: 0,
         actual_minor: 40,
         delta_minor: 40,
         currency: 'USD',
-        detail: 'ref=null',
+        detail: 'Payment has no invoice reference',
       },
       {
         seq: 1,
-        kind: 'UNMATCHED_PAYMENT',
+        kind: 'unmatched_payment',
         invoice_id: null,
         payment_id: 'P2',
         expected_minor: 0,
         actual_minor: 50,
         delta_minor: 50,
         currency: 'USD',
-        detail: 'ref=NOPE',
+        detail: 'Payment references unknown invoice NOPE',
       },
     ]);
   });
@@ -256,18 +258,18 @@ describe('reconcile: per-kind', () => {
     );
   });
 
-  it('zero-amount invoice with no payments is MATCHED', () => {
+  it('zero-amount invoice with no payments is matched', () => {
     const [f] = reconcile(ds([inv('I1', 0, PAST)], []), AS_OF);
     expect(f).toMatchObject({
-      kind: 'MATCHED',
+      kind: 'matched',
       expected_minor: 0,
       actual_minor: 0,
       delta_minor: 0,
-      detail: 'payments=0',
+      detail: 'Nothing to pay',
     });
   });
 
-  it('3 partials summing exactly are MATCHED', () => {
+  it('3 partials summing exactly are matched', () => {
     const out = reconcile(
       ds(
         [inv('I1', 1000, PAST)],
@@ -279,8 +281,8 @@ describe('reconcile: per-kind', () => {
       ),
       AS_OF,
     );
-    expect(kinds(out)).toEqual([['MATCHED', 'I1', null, 0]]);
-    expect(out[0].detail).toBe('payments=3');
+    expect(kinds(out)).toEqual([['matched', 'I1', null, 0]]);
+    expect(out[0].detail).toBe('Paid in full by 3 payments');
   });
 
   it('a payment received after as_of is ignored', () => {
@@ -291,7 +293,7 @@ describe('reconcile: per-kind', () => {
       ),
       AS_OF,
     );
-    expect(kinds(out)).toEqual([['UNPAID_OVERDUE', 'I1', null, 1000]]);
+    expect(kinds(out)).toEqual([['unpaid_overdue', 'I1', null, 1000]]);
   });
 
   it('a payment received on as_of is counted', () => {
@@ -299,12 +301,12 @@ describe('reconcile: per-kind', () => {
       ds([inv('I1', 1000, PAST)], [pay('P1', 'I1', 1000, AS_OF)]),
       AS_OF,
     );
-    expect(kinds(out)).toEqual([['MATCHED', 'I1', null, 0]]);
+    expect(kinds(out)).toEqual([['matched', 'I1', null, 0]]);
   });
 });
 
 describe('reconcile: R4 duplicates', () => {
-  it('two full payments: first settles, second is DUPLICATE_PAYMENT', () => {
+  it('two full payments: first settles, second is duplicate_payment', () => {
     const out = reconcile(
       ds(
         [inv('I1', 1000, PAST)],
@@ -316,13 +318,13 @@ describe('reconcile: R4 duplicates', () => {
       AS_OF,
     );
     expect(kinds(out)).toEqual([
-      ['MATCHED', 'I1', null, 0],
-      ['DUPLICATE_PAYMENT', 'I1', 'P2', 1000],
+      ['matched', 'I1', null, 0],
+      ['duplicate_payment', 'I1', 'P2', 1000],
     ]);
     expect(out[1]).toMatchObject({
       expected_minor: 0,
       actual_minor: 1000,
-      detail: 'settled_by=P1',
+      detail: 'Repeats the full payment P1, which already settled the invoice',
     });
   });
 
@@ -338,9 +340,9 @@ describe('reconcile: R4 duplicates', () => {
       AS_OF,
     );
     expect(out[1]).toMatchObject({
-      kind: 'DUPLICATE_PAYMENT',
+      kind: 'duplicate_payment',
       payment_id: 'PB',
-      detail: 'settled_by=PA',
+      detail: 'Repeats the full payment PA, which already settled the invoice',
     });
   });
 
@@ -353,9 +355,9 @@ describe('reconcile: R4 duplicates', () => {
     ];
     const out = reconcile(ds([inv('I1', 1000, PAST)], payments), AS_OF);
     expect(kinds(out)).toEqual([
-      ['OVERPAID', 'I1', null, 250],
-      ['DUPLICATE_PAYMENT', 'I1', 'P2', 1000],
-      ['DUPLICATE_PAYMENT', 'I1', 'P3', 1000],
+      ['overpaid', 'I1', null, 250],
+      ['duplicate_payment', 'I1', 'P2', 1000],
+      ['duplicate_payment', 'I1', 'P3', 1000],
     ]);
     const cash = payments.reduce((s, p) => s + p.amount_minor, 0);
     expect(out.reduce((s, f) => s + f.delta_minor, 0)).toBe(cash - 1000);
@@ -372,10 +374,10 @@ describe('reconcile: R4 duplicates', () => {
       ),
       AS_OF,
     );
-    expect(kinds(out)).toEqual([['MATCHED', 'I1', null, 0]]);
+    expect(kinds(out)).toEqual([['matched', 'I1', null, 0]]);
   });
 
-  it('a full payment after partials is OVERPAID, not DUPLICATE_PAYMENT', () => {
+  it('a full payment after partials is overpaid, not duplicate_payment', () => {
     const out = reconcile(
       ds(
         [inv('I1', 1000, PAST)],
@@ -387,7 +389,7 @@ describe('reconcile: R4 duplicates', () => {
       ),
       AS_OF,
     );
-    expect(kinds(out)).toEqual([['OVERPAID', 'I1', null, 1000]]);
+    expect(kinds(out)).toEqual([['overpaid', 'I1', null, 1000]]);
   });
 
   it('zero-amount invoice never yields duplicates', () => {
@@ -398,7 +400,7 @@ describe('reconcile: R4 duplicates', () => {
       ),
       AS_OF,
     );
-    expect(kinds(out)).toEqual([['OVERPAID', 'I1', null, 10]]);
+    expect(kinds(out)).toEqual([['overpaid', 'I1', null, 10]]);
   });
 });
 
@@ -415,7 +417,9 @@ describe('validateDataset (R0)', () => {
       [inv('I1', 1000, PAST)],
       [pay('P1', 'I1', 1000, '2026-09-10', 'EUR')],
     );
-    expect(() => reconcile(d, AS_OF)).toThrow(DatasetValidationError);
+    expect(() => reconcile(d, AS_OF)).toThrow(
+      'dataset.payments.0.currency: currency EUR differs from invoice I1 currency USD',
+    );
   });
 
   it('invoice currency differing from its subscription currency throws', () => {

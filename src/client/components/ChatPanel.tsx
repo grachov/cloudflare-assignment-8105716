@@ -1,7 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import { useAgent } from 'agents/react';
 import { useAgentChat } from '@cloudflare/ai-chat/react';
 import { getToolName, isToolUIPart, type UIMessage } from 'ai';
+import Markdown, { type Components } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { z } from 'zod';
 
 const STORAGE_KEY = 'recon.conversationId';
 const PROMPTS = [
@@ -10,16 +13,31 @@ const PROMPTS = [
   'Show unmatched payments',
 ];
 
+// Conversation ids name the chat Durable Object; the server rejects anything that is not a UUID.
+const ConversationId = z.uuid();
+const isConversationId = (v: string | null): v is string =>
+  ConversationId.safeParse(v).success;
+const newConversationId = (): string => crypto.randomUUID();
+
+/** The ?c= query param, else the stored id, else a new one; an invalid candidate is skipped, not used. */
 function initialConversationId(): string {
-  let id: string | null = null;
+  const fromUrl = new URLSearchParams(window.location.search).get('c');
+  if (isConversationId(fromUrl)) return fromUrl;
+  let stored: string | null = null;
   try {
-    id = new URLSearchParams(window.location.search).get('c');
-    if (!id) id = localStorage.getItem(STORAGE_KEY);
+    stored = localStorage.getItem(STORAGE_KEY);
   } catch {
     /* storage unavailable */
   }
-  return id || crypto.randomUUID();
+  return isConversationId(stored) ? stored : newConversationId();
 }
+
+// Model output is untrusted: react-markdown never renders raw HTML and strips unsafe URLs; links open in a new tab.
+const MARKDOWN_COMPONENTS: Components = {
+  a: ({ node: _node, ...props }) => (
+    <a {...props} target="_blank" rel="noreferrer" />
+  ),
+};
 
 function persist(id: string): void {
   try {
@@ -40,7 +58,7 @@ export function ChatPanel() {
   });
 
   const newConversation = () => {
-    const id = crypto.randomUUID();
+    const id = newConversationId();
     persist(id);
     setConversationId(id);
   };
@@ -105,7 +123,7 @@ function ChatSession({
     setInput('');
   };
 
-  const submit = (e: FormEvent) => {
+  const submit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     send(input);
   };
@@ -148,10 +166,19 @@ function ChatSession({
             </span>
             {m.parts.map((part, i) => {
               if (part.type === 'text') {
-                return (
+                return m.role === 'user' ? (
                   <p key={i} className="msg-text">
                     {part.text}
                   </p>
+                ) : (
+                  <div key={i} className="msg-text msg-markdown">
+                    <Markdown
+                      remarkPlugins={[remarkGfm]}
+                      components={MARKDOWN_COMPONENTS}
+                    >
+                      {part.text}
+                    </Markdown>
+                  </div>
                 );
               }
               if (isToolUIPart(part)) return <ToolRow key={i} part={part} />;

@@ -11,6 +11,7 @@ import {
   createUIMessageStreamResponse,
   stepCountIs,
   streamText,
+  toUIMessageStream,
   type LanguageModel,
 } from 'ai';
 import {
@@ -63,19 +64,22 @@ export class ChatAgent extends AIChatAgent<Env> {
     const refusal = await chatPreflight({
       limiter: this.getLimiter(),
       sid: this.resolveSid(),
-      convUserCount: this.messages.filter((m) => m.role === 'user').length,
+      userMessageCount: this.messages.filter((m) => m.role === 'user').length,
     });
     if (refusal !== null) return refusalResponse(refusal);
 
+    const tools = createTools(new ReadOnlyDb(this.env.DB));
     const result = streamText({
       model: this.createModel(),
       system: SYSTEM_PROMPT,
       messages: await convertToModelMessages(this.messages),
-      tools: createTools(new ReadOnlyDb(this.env.DB)),
+      tools,
       stopWhen: stepCountIs(5),
       abortSignal: options?.abortSignal,
     });
-    return result.toUIMessageStreamResponse();
+    return createUIMessageStreamResponse({
+      stream: toUIMessageStream({ stream: result.stream, tools }),
+    });
   }
 }
 

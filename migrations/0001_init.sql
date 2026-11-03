@@ -21,7 +21,7 @@ CREATE TABLE invoices (
   due_at          TEXT NOT NULL
 );
 
--- invoice_ref is deliberately NOT a foreign key: UNMATCHED_PAYMENT needs null and unknown refs.
+-- invoice_ref is deliberately NOT a foreign key: unmatched payments need null and unknown refs.
 CREATE TABLE payments (
   id           TEXT PRIMARY KEY,
   invoice_ref  TEXT,
@@ -49,12 +49,12 @@ CREATE TABLE reconciliation_runs (
 );
 
 -- id = hex(SHA-256("v1|run_id|kind|invoice_id|payment_id")); seq = engine output index (all reads ORDER BY seq).
--- invoice_id / payment_id are NOT foreign keys (UNMATCHED_PAYMENT has no invoice).
+-- invoice_id / payment_id are NOT foreign keys (an unmatched payment has no invoice).
 CREATE TABLE findings (
   id             TEXT PRIMARY KEY,
   run_id         TEXT NOT NULL REFERENCES reconciliation_runs(id),
   seq            INTEGER NOT NULL,
-  kind           TEXT NOT NULL CHECK (kind IN ('MATCHED', 'UNDERPAID', 'OVERPAID', 'DUPLICATE_PAYMENT', 'UNPAID_OVERDUE', 'UNMATCHED_PAYMENT')),
+  kind           TEXT NOT NULL CHECK (kind IN ('matched', 'underpaid', 'overpaid', 'duplicate_payment', 'unpaid_overdue', 'unmatched_payment')),
   invoice_id     TEXT,
   payment_id     TEXT,
   expected_minor INTEGER NOT NULL CHECK (typeof(expected_minor) = 'integer' AND expected_minor >= 0),

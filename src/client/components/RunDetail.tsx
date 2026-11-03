@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type RunDTO } from '../api';
 import { FindingsView } from './FindingsView';
+import {
+  KIND_LABELS,
+  RUN_MODE_LABELS,
+  RUN_STATUS_LABELS,
+  RUN_STEP_LABELS,
+} from '../labels';
+import { RUN_STEPS } from '../../shared/types';
 
-const STEPS = ['load-and-reconcile', 'write-findings', 'complete'] as const;
 const isTerminal = (r: RunDTO | null) =>
   r?.status === 'complete' || r?.status === 'errored';
 
@@ -13,7 +19,7 @@ function stepState(
   if (run.status === 'complete') return 'done';
   const current = Math.max(
     0,
-    STEPS.findIndex((s) => s === run.current_step),
+    RUN_STEPS.findIndex((s) => s === run.current_step),
   );
   if (index < current) return 'done';
   if (index === current) return run.status === 'errored' ? 'failed' : 'active';
@@ -91,13 +97,13 @@ export function RunDetail({
           role="status"
           aria-live="polite"
         >
-          {run.status}
+          {RUN_STATUS_LABELS[run.status]}
         </span>
-        <span className="muted">mode: {run.mode}</span>
+        <span className="muted">Mode: {RUN_MODE_LABELS[run.mode]}</span>
       </header>
 
       <ol className="steps" aria-label="Progress">
-        {STEPS.map((s, i) => {
+        {RUN_STEPS.map((s, i) => {
           const st = stepState(run, i);
           return (
             <li
@@ -108,7 +114,7 @@ export function RunDetail({
               <span className="step-dot" aria-hidden="true">
                 {st === 'done' ? '✓' : st === 'failed' ? '✕' : i + 1}
               </span>
-              <span>{s}</span>
+              <span>{RUN_STEP_LABELS[s]}</span>
               <span className="visually-hidden"> ({st})</span>
             </li>
           );
@@ -149,7 +155,7 @@ export function RunDetail({
         <ul className="summary" aria-label="Summary by kind and currency">
           {run.summary.map((s) => (
             <li key={`${s.kind}-${s.currency}`}>
-              <strong>{s.count}</strong> {s.kind}{' '}
+              <strong>{s.count}</strong> {KIND_LABELS[s.kind]}{' '}
               <span className="muted">{s.currency}</span>
             </li>
           ))}

@@ -1,11 +1,11 @@
 /** The six finding kinds, in R7 KIND_RANK order. */
 export const KINDS = [
-  'MATCHED',
-  'UNDERPAID',
-  'OVERPAID',
-  'UNPAID_OVERDUE',
-  'DUPLICATE_PAYMENT',
-  'UNMATCHED_PAYMENT',
+  'matched',
+  'underpaid',
+  'overpaid',
+  'unpaid_overdue',
+  'duplicate_payment',
+  'unmatched_payment',
 ] as const;
 
 export type FindingKind = (typeof KINDS)[number];
@@ -24,6 +24,7 @@ export interface Finding {
 }
 
 export const RUN_MODES = ['normal', 'simulate_failure'] as const;
+
 export type RunMode = (typeof RUN_MODES)[number];
 
 export type RunStatus = 'queued' | 'running' | 'complete' | 'errored';
@@ -34,6 +35,8 @@ export const RUN_STEPS = [
   'write-findings',
   'complete',
 ] as const;
+
+export type RunStep = (typeof RUN_STEPS)[number];
 
 export interface RunSummaryRow {
   kind: FindingKind;
@@ -47,7 +50,7 @@ export interface RunDTO {
   mode: RunMode;
   status: RunStatus;
   current_step: string | null;
-  steps: (typeof RUN_STEPS)[number][];
+  steps: RunStep[];
   as_of_date: string;
   dataset_hash: string | null;
   write_attempts: number;
@@ -74,12 +77,12 @@ export interface FindingDTO {
 }
 
 export type InvoiceStatus =
-  | 'MATCHED'
-  | 'UNDERPAID'
-  | 'OVERPAID'
-  | 'UNPAID_OVERDUE'
-  | 'OPEN'
-  | 'NOT_RECONCILED';
+  | 'matched'
+  | 'underpaid'
+  | 'overpaid'
+  | 'unpaid_overdue'
+  | 'open'
+  | 'not_reconciled';
 
 /** One row of GET /api/invoices. */
 export interface InvoiceDTO {
@@ -92,4 +95,11 @@ export interface InvoiceDTO {
   duplicate_minor: number;
   currency: string;
   status: InvoiceStatus;
+}
+
+/** GET /api/invoices. */
+export interface InvoicesResponse {
+  asOfDate: string;
+  latestRunId: string | null;
+  invoices: InvoiceDTO[];
 }

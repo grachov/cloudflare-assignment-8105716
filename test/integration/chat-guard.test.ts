@@ -42,7 +42,7 @@ describe('chatPreflight (pure)', () => {
   it('a denying limiter gives the "slow down" text', async () => {
     const limiter = deny();
     expect(
-      await chatPreflight({ limiter, sid: 'sid-1', convUserCount: 1 }),
+      await chatPreflight({ limiter, sid: 'sid-1', userMessageCount: 1 }),
     ).toMatch(/slow down/i);
     expect(limiter.limit).toHaveBeenCalledWith({ key: 'sid-1' });
   });
@@ -50,18 +50,18 @@ describe('chatPreflight (pure)', () => {
   it('more than 40 user messages gives the cap text before the limiter is consulted', async () => {
     const limiter = allow();
     expect(
-      await chatPreflight({ limiter, sid: 'sid-1', convUserCount: 41 }),
+      await chatPreflight({ limiter, sid: 'sid-1', userMessageCount: 41 }),
     ).toBe(CAP_TEXT);
     expect(limiter.limit).not.toHaveBeenCalled();
     expect(
-      await chatPreflight({ limiter, sid: 'sid-1', convUserCount: 40 }),
+      await chatPreflight({ limiter, sid: 'sid-1', userMessageCount: 40 }),
     ).toBeNull();
   });
 
   it('a missing sid fails closed without calling the limiter', async () => {
     for (const sid of [undefined, null, '']) {
       const limiter = allow();
-      expect(await chatPreflight({ limiter, sid, convUserCount: 0 })).toBe(
+      expect(await chatPreflight({ limiter, sid, userMessageCount: 0 })).toBe(
         SESSION_EXPIRED_TEXT,
       );
       expect(limiter.limit).not.toHaveBeenCalled();
@@ -70,7 +70,11 @@ describe('chatPreflight (pure)', () => {
 
   it('an allowed turn returns null', async () => {
     expect(
-      await chatPreflight({ limiter: allow(), sid: 'sid-1', convUserCount: 0 }),
+      await chatPreflight({
+        limiter: allow(),
+        sid: 'sid-1',
+        userMessageCount: 0,
+      }),
     ).toBeNull();
   });
 });

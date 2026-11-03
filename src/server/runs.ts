@@ -146,21 +146,21 @@ export async function writeFindings(
   inserted: number;
   attempt: { write_attempts: number; mode: RunMode } | null;
 }> {
-  const inserts = rows.map((f) =>
+  const inserts = rows.map((finding) =>
     db
       .prepare(INSERT_FINDING_SQL)
       .bind(
         runId,
-        f.id,
-        f.seq,
-        f.kind,
-        f.invoice_id,
-        f.payment_id,
-        f.expected_minor,
-        f.actual_minor,
-        f.delta_minor,
-        f.currency,
-        f.detail,
+        finding.id,
+        finding.seq,
+        finding.kind,
+        finding.invoice_id,
+        finding.payment_id,
+        finding.expected_minor,
+        finding.actual_minor,
+        finding.delta_minor,
+        finding.currency,
+        finding.detail,
       ),
   );
   const results = await db.batch<{ write_attempts: number; mode: RunMode }>([
@@ -238,28 +238,29 @@ export async function toRunDTOs(
     rows.length > 0
       ? await findingsSummary(
           db,
-          rows.map((r) => r.id),
+          rows.map((run) => run.id),
         )
       : new Map<string, RunSummary>();
-  return rows.map((r) => ({
-    id: r.id,
-    mode: r.mode,
-    status: r.status,
-    current_step: r.current_step,
+  return rows.map((run) => ({
+    id: run.id,
+    mode: run.mode,
+    status: run.status,
+    current_step: run.current_step,
     steps: [...RUN_STEPS],
-    as_of_date: r.as_of_date,
-    dataset_hash: r.dataset_hash,
-    write_attempts: r.write_attempts,
-    failure_injected: r.failure_injected,
-    findings_count: summaries.get(r.id)?.findings_count ?? 0,
-    summary: summaries.get(r.id)?.summary ?? [],
-    error: r.error,
-    started_at: r.started_at,
-    completed_at: r.completed_at,
+    as_of_date: run.as_of_date,
+    dataset_hash: run.dataset_hash,
+    write_attempts: run.write_attempts,
+    failure_injected: run.failure_injected,
+    findings_count: summaries.get(run.id)?.findings_count ?? 0,
+    summary: summaries.get(run.id)?.summary ?? [],
+    error: run.error,
+    started_at: run.started_at,
+    completed_at: run.completed_at,
   }));
 }
 
 export async function toRunDTO(db: D1Database, row: RunRow): Promise<RunDTO> {
   const [dto] = await toRunDTOs(db, [row]);
+
   return dto;
 }

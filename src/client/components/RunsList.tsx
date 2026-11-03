@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type RunDTO } from '../api';
+import { RUN_MODE_LABELS, RUN_STATUS_LABELS } from '../labels';
 
 export function RunsList({
   refreshKey,
@@ -44,9 +45,11 @@ export function RunsList({
             onClick={() => onSelect(r.id)}
           >
             <span className="mono">{r.id}</span>
-            <span className={`pill pill-${r.status}`}>{r.status}</span>
+            <span className={`pill pill-${r.status}`}>
+              {RUN_STATUS_LABELS[r.status]}
+            </span>
             <span className="muted">
-              {r.mode} · {r.findings_count} findings
+              {RUN_MODE_LABELS[r.mode]} · {r.findings_count} findings
             </span>
           </button>
         </li>

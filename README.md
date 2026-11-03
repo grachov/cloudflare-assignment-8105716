@@ -98,44 +98,44 @@ Storage split: the ledger, runs and findings live in D1, which is the single sou
 
 All amounts are integer minor units (for example 4900 = 49.00 USD). The as-of date is the `AS_OF_DATE` var in `wrangler.jsonc` (`2026-10-15`).
 
-| Kind                | Definition                                                                                                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `MATCHED`           | Net payments equal the invoice amount (also a zero-amount invoice with no payments).                                                                                                                   |
-| `UNDERPAID`         | Net payments are greater than 0 and below the amount. Delta is the shortfall. If `due_at >= as_of`, `detail` ends with `not_yet_due`.                                                                  |
-| `OVERPAID`          | Net payments exceed the amount. Delta is the excess.                                                                                                                                                   |
-| `UNPAID_OVERDUE`    | No payments and `due_at < as_of`. Delta is the full amount. A not-yet-due unpaid invoice produces no finding.                                                                                          |
-| `DUPLICATE_PAYMENT` | Among payments whose amount equals the invoice amount, every one after the first (ordered by `received_at`, then id) is a duplicate. Delta is the payment amount; `detail` is `settled_by=<first id>`. |
-| `UNMATCHED_PAYMENT` | A payment whose `invoice_ref` is null or matches no invoice.                                                                                                                                           |
+| Kind                | Definition                                                                                                                                                                                                     |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `matched`           | Net payments equal the invoice amount (also a zero-amount invoice with no payments).                                                                                                                           |
+| `underpaid`         | Net payments are greater than 0 and below the amount. Delta is the shortfall. `detail` says whether the due date has passed.                                                                                   |
+| `overpaid`          | Net payments exceed the amount. Delta is the excess.                                                                                                                                                           |
+| `unpaid_overdue`    | No payments and `due_at < as_of`. Delta is the full amount. A not-yet-due unpaid invoice produces no finding.                                                                                                  |
+| `duplicate_payment` | Among payments whose amount equals the invoice amount, every one after the first (ordered by `received_at`, then id) is a duplicate. Delta is the payment amount; `detail` names the first (settling) payment. |
+| `unmatched_payment` | A payment whose `invoice_ref` is null or matches no invoice.                                                                                                                                                   |
 
 Details that matter:
 
 - **As-of semantics:** payments with `received_at > as_of` are ignored. An invoice is overdue only if `due_at < as_of`, so an invoice due exactly on the as-of date is not overdue.
-- **Duplicate vs overpaid:** only full-amount payments can be duplicates, and only when there are two or more. Identical partial payments are never duplicates. A single full payment arriving after partials that already settled the invoice is `OVERPAID`, not `DUPLICATE_PAYMENT`. Duplicates are excluded from the net total, so an invoice with two full payments plus a small extra payment emits both a `DUPLICATE_PAYMENT` and an `OVERPAID` finding, and their deltas sum to the total excess cash.
-- **Validation:** non-integer amounts, unsupported currencies (only USD and EUR), duplicate ids, or a payment whose currency differs from its invoice cause the run to fail (`errored`) instead of producing a finding.
+- **Duplicate vs overpaid:** only full-amount payments can be duplicates, and only when there are two or more. Identical partial payments are never duplicates. A single full payment arriving after partials that already settled the invoice is `overpaid`, not `duplicate_payment`. Duplicates are excluded from the net total, so an invoice with two full payments plus a small extra payment emits both a `duplicate_payment` and an `overpaid` finding, and their deltas sum to the total excess cash.
+- **Validation:** a Zod schema checks the dataset before reconciling. Non-integer amounts, unsupported currencies (only USD and EUR), duplicate ids, or a payment whose currency differs from its invoice cause the run to fail (`errored`) instead of producing a finding.
 - **Ordering:** findings are sorted by invoice id, then kind rank, then payment id, and numbered with `seq`. Every read uses `ORDER BY seq`.
 
 ### Seed scenarios (as-of 2026-10-15)
 
-15 invoices, 18 payments, 17 findings: MATCHED 6, UNDERPAID 2, OVERPAID 2, DUPLICATE_PAYMENT 2, UNPAID_OVERDUE 3, UNMATCHED_PAYMENT 2.
+15 invoices, 18 payments, 17 findings: matched 6, underpaid 2, overpaid 2, duplicate_payment 2, unpaid_overdue 3, unmatched_payment 2.
 
 | Invoice        | Scenario                                     | Expected findings                                 |
 | -------------- | -------------------------------------------- | ------------------------------------------------- |
-| INV-1001       | Paid in full                                 | MATCHED                                           |
-| INV-1002       | Full payment, then the same amount again     | MATCHED; DUPLICATE_PAYMENT (P2003, 4900)          |
-| INV-1003       | Paid in full on the due date                 | MATCHED                                           |
-| INV-1004       | Two identical partials summing to the total  | MATCHED                                           |
-| INV-1005       | Partial payment, overdue                     | UNDERPAID (7000)                                  |
+| INV-1001       | Paid in full                                 | matched                                           |
+| INV-1002       | Full payment, then the same amount again     | matched; duplicate_payment (P2003, 4900)          |
+| INV-1003       | Paid in full on the due date                 | matched                                           |
+| INV-1004       | Two identical partials summing to the total  | matched                                           |
+| INV-1005       | Partial payment, overdue                     | underpaid (7000)                                  |
 | INV-1006       | Unpaid, due on the as-of date                | none                                              |
-| INV-1007, 1008 | Unpaid, overdue                              | UNPAID_OVERDUE (1900 each)                        |
-| INV-1009       | Paid 2500 on a 1900 invoice                  | OVERPAID (600 USD)                                |
-| INV-1010       | Three partials summing to the total (EUR)    | MATCHED                                           |
-| INV-1011       | Two full payments plus 1000 extra (EUR)      | OVERPAID (1000); DUPLICATE_PAYMENT (P2013, 25000) |
-| INV-1012       | Partial payment, due on the as-of date (EUR) | UNDERPAID (1000, `not_yet_due`)                   |
-| INV-1013       | Paid in full (net-30)                        | MATCHED                                           |
-| INV-1014       | Unpaid, overdue (99000)                      | UNPAID_OVERDUE                                    |
+| INV-1007, 1008 | Unpaid, overdue                              | unpaid_overdue (1900 each)                        |
+| INV-1009       | Paid 2500 on a 1900 invoice                  | overpaid (600 USD)                                |
+| INV-1010       | Three partials summing to the total (EUR)    | matched                                           |
+| INV-1011       | Two full payments plus 1000 extra (EUR)      | overpaid (1000); duplicate_payment (P2013, 25000) |
+| INV-1012       | Partial payment, due on the as-of date (EUR) | underpaid (1000, not yet due)                     |
+| INV-1013       | Paid in full (net-30)                        | matched                                           |
+| INV-1014       | Unpaid, overdue (99000)                      | unpaid_overdue                                    |
 | INV-1015       | Unpaid, not yet due                          | none                                              |
-| none           | P2017: 1900, no invoice ref                  | UNMATCHED_PAYMENT                                 |
-| none           | P2018: 4900, ref `INV-9999`                  | UNMATCHED_PAYMENT                                 |
+| none           | P2017: 1900, no invoice ref                  | unmatched_payment                                 |
+| none           | P2018: 4900, ref `INV-9999`                  | unmatched_payment                                 |
 
 ## Idempotency and retry
 
@@ -177,7 +177,7 @@ All bodies are JSON. Everything except `POST /api/session` and `GET /api/health`
 | POST   | `/api/session`                       | `{passcode}`                                    | `{ok: true}` + `Set-Cookie`                                                                                                       | 200; 400; 401 wrong passcode; 429                                        |
 | GET    | `/api/session`                       | cookie                                          | `{authenticated, expiresAt}`                                                                                                      | 200; 401                                                                 |
 | DELETE | `/api/session`                       | none                                            | clears cookie                                                                                                                     | 204                                                                      |
-| GET    | `/api/invoices`                      | none                                            | `{asOfDate, latestRunId, invoices[]}`; status is `MATCHED`, `UNDERPAID`, `OVERPAID`, `UNPAID_OVERDUE`, `OPEN` or `NOT_RECONCILED` | 200                                                                      |
+| GET    | `/api/invoices`                      | none                                            | `{asOfDate, latestRunId, invoices[]}`; status is `matched`, `underpaid`, `overpaid`, `unpaid_overdue`, `open` or `not_reconciled` | 200                                                                      |
 | POST   | `/api/runs`                          | header `Idempotency-Key: <uuid>`; body `{mode}` | `{run, duplicate}`                                                                                                                | 202 new; 200 duplicate; 400; 422 mode mismatch; 503 workflow unconfirmed |
 | GET    | `/api/runs`                          | `?limit` (max 50)                               | `{runs[]}` newest first                                                                                                           | 200                                                                      |
 | GET    | `/api/runs/:id`                      | none                                            | run with `status`, `current_step`, `write_attempts`, `findings_count`, `summary`                                                  | 200; 404                                                                 |
@@ -207,7 +207,7 @@ Generate a secret with `openssl rand -base64 32`. Sign in with the passcode you 
 pnpm test
 ```
 
-Runs 100 tests: 52 unit (Node: engine, money, auth, dataset hash, read-only DB) and 48 integration (workerd via `@cloudflare/vitest-plugin`: schema, runs and Workflow retry, API, auth, agent tools, chat guard). The AI binding is a stub that throws, so Workers AI is never called and tests need no network or login. Expect harmless `uncaught exception` log lines from the stub and the simulated failure.
+Runs 102 tests: 53 unit (Node: engine, money, auth, dataset hash, read-only DB) and 49 integration (workerd via `@cloudflare/vitest-plugin`: schema, runs and Workflow retry, API, auth, agent tools, chat guard). The AI binding is a stub that throws, so Workers AI is never called and tests need no network or login. Expect harmless `uncaught exception` log lines from the stub and the simulated failure.
 
 **Typecheck and build**
 
@@ -231,11 +231,11 @@ The checked-in `database_id` is a placeholder that works for local dev and tests
 
 ## Demo script
 
-1. Open the app and sign in with the passcode. Invoices show `NOT_RECONCILED`.
+1. Open the app and sign in with the passcode. Invoices show `not_reconciled`.
 2. Click **Run reconciliation**. The run progresses through three steps and completes with 17 findings; invoice statuses update.
 3. Click **Replay last request**. The same run returns with a "duplicate" banner and no new findings.
 4. Click **Run with simulated failure**. When complete, the run shows `write_attempts = 2` and still 17 findings.
-5. Open the findings view and check INV-1011: both OVERPAID (1000) and DUPLICATE_PAYMENT (25000).
+5. Open the findings view and check INV-1011: both overpaid (1000) and duplicate_payment (25000).
 6. In chat, ask "Why is INV-1011 flagged?". The answer cites P2013 and shows tool calls.
 7. Reload the page. The conversation is restored from the Durable Object.
 8. Send 11 quick messages. The 11th within a minute is rejected with a slow-down message.

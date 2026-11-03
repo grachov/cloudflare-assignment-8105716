@@ -350,23 +350,23 @@ tbody tr:last-child > * {
   background: var(--neutral-bg);
   color: var(--neutral-fg);
 }
-.badge-MATCHED,
+.badge-matched,
 .pill-complete {
   background: var(--ok-bg);
   color: var(--ok-fg);
 }
-.badge-UNDERPAID,
-.badge-UNPAID_OVERDUE,
+.badge-underpaid,
+.badge-unpaid_overdue,
 .pill-errored {
   background: var(--bad-bg);
   color: var(--bad-fg);
 }
-.badge-OVERPAID,
+.badge-overpaid,
 .pill-running {
   background: var(--warn-bg);
   color: var(--warn-fg);
 }
-.badge-OPEN,
+.badge-open,
 .pill-queued {
   background: var(--info-bg);
   color: var(--info-fg);
@@ -595,6 +595,33 @@ tbody tr:last-child > * {
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+.msg-markdown {
+  white-space: normal;
+}
+.msg-markdown > :first-child {
+  margin-top: 0;
+}
+.msg-markdown > :last-child {
+  margin-bottom: 0;
+}
+.msg-markdown p,
+.msg-markdown ul,
+.msg-markdown ol {
+  margin: 0.4rem 0;
+}
+.msg-markdown ul,
+.msg-markdown ol {
+  padding-left: 1.25rem;
+}
+.msg-markdown table {
+  display: block;
+  overflow-x: auto;
+  font-size: 0.85rem;
+}
+.msg-markdown th,
+.msg-markdown td {
+  padding: 0.3rem 0.5rem;
 }
 .tool-row {
   display: flex;

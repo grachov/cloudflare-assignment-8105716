@@ -4,7 +4,10 @@
  * (2 for USD and EUR).
  */
 export function formatMinor(minor: number, currency: string): string {
-  const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency });
+  const fmt = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+  });
   const exponent = fmt.resolvedOptions().maximumFractionDigits ?? 2;
   const digits = Math.abs(minor)
     .toString()
@@ -12,5 +15,6 @@ export function formatMinor(minor: number, currency: string): string {
   const whole = digits.slice(0, digits.length - exponent);
   const fraction = digits.slice(digits.length - exponent);
   const decimal = `${minor < 0 ? '-' : ''}${whole}${exponent > 0 ? `.${fraction}` : ''}`;
+
   return fmt.format(decimal as Intl.StringNumericLiteral);
 }
