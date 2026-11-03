@@ -30,21 +30,24 @@ export interface RunRow {
 
 const NOT_TERMINAL = "status NOT IN ('complete', 'errored')";
 
+export type EnsuredWorkflow = 'created' | InstanceStatus['status'];
+
 /**
  * Create the Workflow instance for a run. Any create error (already exists, transient, unknown) is confirmed by
- * reading the instance back; only if that also fails is the original error rethrown. Error codes are never matched.
+ * reading the instance back, and the existing instance's status is returned; only if that also fails is the
+ * original error rethrown. Error codes are never matched.
  */
 export async function ensureWorkflow(
   env: Env,
   id: string,
   params: ReconParams,
-): Promise<void> {
+): Promise<EnsuredWorkflow> {
   try {
     await env.RECON.create({ id, params });
+    return 'created';
   } catch (e) {
     try {
-      await (await env.RECON.get(id)).status();
-      return;
+      return (await (await env.RECON.get(id)).status()).status;
     } catch {
       throw e;
     }
@@ -263,4 +266,29 @@ export async function toRunDTO(db: D1Database, row: RunRow): Promise<RunDTO> {
   const [dto] = await toRunDTOs(db, [row]);
 
   return dto;
+}
+
+/** Demo reset: removes every run and finding in one atomic batch (findings first, for the foreign key). */
+export async function deleteAllRuns(
+  db: D1Database,
+): Promise<{ runs: number; findings: number }> {
+  const [findings, runs] = await db.batch([
+    db.prepare('DELETE FROM findings'),
+    db.prepare('DELETE FROM reconciliation_runs'),
+  ]);
+  return { runs: runs.meta.changes, findings: findings.meta.changes };
+}
+
+/** Deletes a run only while it is still queued; returns true when a row was removed. */
+export async function deleteQueuedRun(
+  db: D1Database,
+  id: string,
+): Promise<boolean> {
+  const res = await db
+    .prepare(
+      "DELETE FROM reconciliation_runs WHERE id = ?1 AND status = 'queued'",
+    )
+    .bind(id)
+    .run();
+  return res.meta.changes > 0;
 }

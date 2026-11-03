@@ -95,6 +95,10 @@ export const api = {
       headers: { 'Idempotency-Key': key },
       body: JSON.stringify({ mode }),
     }).then((r) => ({ ...r.body, status: r.status })),
+  deleteAllRuns: () =>
+    request<{ deleted: { runs: number; findings: number } }>('/api/runs', {
+      method: 'DELETE',
+    }).then((r) => r.body.deleted),
   listRuns: (limit = 20) =>
     request<{ runs: RunDTO[] }>(`/api/runs?limit=${limit}`).then(
       (r) => r.body.runs,

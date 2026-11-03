@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { KINDS, RUN_MODES, type FindingDTO } from '../../shared/types';
 import { throwOnInvalid, type AppEnv } from '../http';
 import {
+  deleteAllRuns,
+  deleteQueuedRun,
   ensureWorkflow,
   getRun,
   getRunByKey,
@@ -12,6 +14,7 @@ import {
   paramsOf,
   toRunDTO,
   toRunDTOs,
+  type EnsuredWorkflow,
   type RunRow,
 } from '../runs';
 
@@ -26,10 +29,20 @@ const listQuery = z.object({
 const runParam = z.object({ id: z.string().min(1).max(64) });
 const findingsQuery = z.object({ kind: z.enum(KINDS).optional() });
 
-async function tryEnsure(env: Env, row: RunRow): Promise<boolean> {
+/** Instance states that will never run the Workflow again. */
+const FINISHED_INSTANCE = new Set<EnsuredWorkflow>([
+  'complete',
+  'errored',
+  'terminated',
+]);
+
+/** The instance's state, or null when its creation could not be confirmed. */
+async function tryEnsure(
+  env: Env,
+  row: RunRow,
+): Promise<EnsuredWorkflow | null> {
   try {
-    await ensureWorkflow(env, row.workflow_instance_id, paramsOf(row));
-    return true;
+    return await ensureWorkflow(env, row.workflow_instance_id, paramsOf(row));
   } catch (e) {
     console.error(
       JSON.stringify({
@@ -38,7 +51,7 @@ async function tryEnsure(env: Env, row: RunRow): Promise<boolean> {
         message: String(e),
       }),
     );
-    return false;
+    return null;
   }
 }
 
@@ -68,7 +81,8 @@ export const runRoutes = new Hono<AppEnv>()
 
       // New rows always need an instance; a replayed key re-ensures only while the row is still queued.
       if (inserted || existing.status === 'queued') {
-        if (!(await tryEnsure(c.env, existing))) {
+        const instance = await tryEnsure(c.env, existing);
+        if (instance === null) {
           return c.json(
             {
               error: 'workflow_create_unconfirmed',
@@ -77,6 +91,16 @@ export const runRoutes = new Hono<AppEnv>()
             503,
           );
         }
+        // A brand-new row whose instance had already finished means the key was used before a data reset:
+        // Workflows keeps finished instances, so this run could never start. Drop the row (only if the
+        // instance really never touched it) and refuse the key.
+        if (
+          inserted &&
+          FINISHED_INSTANCE.has(instance) &&
+          (await deleteQueuedRun(db, id))
+        ) {
+          return c.json({ error: 'idempotency_key_retired' }, 409);
+        }
       }
       const run = await toRunDTO(db, (await getRun(db, id)) ?? existing);
       return inserted
@@ -84,6 +108,8 @@ export const runRoutes = new Hono<AppEnv>()
         : c.json({ run, duplicate: true }, 200);
     },
   )
+  // Demo reset: in-flight Workflows become no-ops because every finding and status write requires the run row.
+  .delete('/', async (c) => c.json({ deleted: await deleteAllRuns(c.env.DB) }))
   .get('/', zValidator('query', listQuery, throwOnInvalid), async (c) => {
     const rows = await listRuns(c.env.DB, c.req.valid('query').limit);
     return c.json({ runs: await toRunDTOs(c.env.DB, rows) });

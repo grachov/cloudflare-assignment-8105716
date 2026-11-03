@@ -36,6 +36,11 @@ export function RunControls({ onRun }: Props) {
           kind: 'error',
           text: 'This request key was already used with a different mode.',
         });
+      else if (e.status === 409)
+        setMessage({
+          kind: 'error',
+          text: 'This request key was used before the data reset. Start a new run instead.',
+        });
       else if (e.status === 503)
         setMessage({
           kind: 'error',

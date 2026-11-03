@@ -34,6 +34,9 @@ function Main({ onLogout }: { onLogout: () => void }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [runId, setRunId] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState(false);
+  // Bumped by a data reset; remounts RunControls so it forgets the last request key.
+  const [resetCount, setResetCount] = useState(0);
+  const [resetting, setResetting] = useState(false);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
@@ -42,6 +45,28 @@ function Main({ onLogout }: { onLogout: () => void }) {
       await api.logout();
     } finally {
       onLogout();
+    }
+  };
+
+  const resetData = async () => {
+    if (
+      !window.confirm(
+        'Delete all reconciliation runs and findings? Invoices and payments are kept.',
+      )
+    )
+      return;
+    setResetting(true);
+    try {
+      await api.deleteAllRuns();
+      setRunId(null);
+      setDuplicate(false);
+      setTab('invoices');
+      setResetCount((n) => n + 1);
+      refresh();
+    } catch (e) {
+      window.alert(`Could not reset data: ${(e as Error).message}`);
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -57,6 +82,14 @@ function Main({ onLogout }: { onLogout: () => void }) {
       <header className="app-header">
         <h1>Billing Reconciliation Assistant</h1>
         {asOf && <span className="asof">As of {asOf}</span>}
+        <button
+          type="button"
+          className="btn small"
+          onClick={resetData}
+          disabled={resetting}
+        >
+          {resetting ? 'Resetting…' : 'Reset data'}
+        </button>
         <button type="button" className="btn small" onClick={logout}>
           Log out
         </button>
@@ -64,7 +97,7 @@ function Main({ onLogout }: { onLogout: () => void }) {
 
       <div className="layout">
         <main className="content">
-          <RunControls onRun={onRun} />
+          <RunControls key={resetCount} onRun={onRun} />
           <div role="tablist" aria-label="Views" className="tabs">
             {(['invoices', 'runs'] as const).map((t) => (
               <button
