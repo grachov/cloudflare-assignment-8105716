@@ -2,7 +2,9 @@
 
 An AI-assisted billing reconciliation MVP that runs entirely on Cloudflare. A deterministic engine compares a synthetic ledger of subscriptions, invoices and payments, then reports six kinds of discrepancy (17 findings on the seed data). Runs are idempotent and execute as a Cloudflare Workflow with a demonstrable transient-failure retry. A chat assistant (Workers AI, Llama 4 Scout) answers questions about the results using read-only tools, and its conversations persist in a Durable Object.
 
-![Application after a reconciliation run](docs/screenshot-run.png)
+[![Demo: sign in, run a reconciliation, replay the request, run with a simulated failure, ask the assistant](docs/demo.gif)](docs/demo.mp4)
+
+The 43-second walkthrough: sign in, run a reconciliation, replay the same request, run with a simulated failure (retried, still 17 findings), then ask the assistant about INV-1011. Click it for the [MP4 version](docs/demo.mp4).
 
 ## What it demonstrates
 
@@ -278,7 +280,7 @@ vitest.config.ts          "unit" (Node) and "integration" (workerd, AI stub) pro
 index.html
 migrations/0001_init.sql  5-table schema
 seed/seed.sql             Idempotent seed dataset
-docs/screenshot-run.png
+docs/demo.gif, demo.mp4  README walkthrough recording
 src/
   shared/                 types.ts, money.ts (formatMinor)
   server/
