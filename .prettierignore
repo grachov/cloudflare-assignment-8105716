@@ -1,3 +1,5 @@
 # .gitignore entries are already ignored by Prettier 3.
 pnpm-lock.yaml
 worker-configuration.d.ts
+# Generated transcript, kept verbatim
+docs/conversation.md

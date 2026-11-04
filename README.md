@@ -6,6 +6,21 @@ An AI-assisted billing reconciliation MVP that runs entirely on Cloudflare. A de
 
 The 43-second walkthrough: sign in, run a reconciliation, replay the same request, run with a simulated failure (retried, still 17 findings), then ask the assistant about INV-1011. Click it for the [MP4 version](docs/demo.mp4).
 
+The project was built with Claude Code; the full development conversation (prompts, decisions and replies) is in [docs/conversation.md](docs/conversation.md).
+
+## Live demo
+
+**URL:** https://recon-assistant.andrey-grachov.workers.dev
+
+<details>
+<summary>Passcode (click to reveal)</summary>
+
+`Ldkxet6yKCKvL2oDP3Ey`
+
+</details>
+
+The demo shares one dataset across all visitors. Use **Reset data** to clear runs and findings; chat is limited to 10 messages per minute per session.
+
 ## What it demonstrates
 
 | Theme                           | Mechanism                                                                                                                                                                                                                                      |
@@ -83,10 +98,10 @@ Storage split: the ledger, runs and findings live in D1, which is the single sou
 - **Alternative:** [Llama 3.3 70B fp8-fast](https://developers.cloudflare.com/workers-ai/models/llama-3.3-70b-instruct-fp8-fast/), which supports [function calling](https://developers.cloudflare.com/workers-ai/features/function-calling/) but has a 24k context window and one external report of tool calls leaking as text when streaming.
 - **Cost:** tool-calling quality is only checked manually, since tests never call the model. The model id is a single constant (`MODEL_ID` in `src/server/agent.ts`).
 
-### UI: React instead of Vue
+### UI: React
 
 - **Chosen:** React 19.
-- **Alternative:** Vue via `@ai-sdk/vue` with `WebSocketChatTransport` (see the [vue-chat example](https://github.com/cloudflare/agents/tree/main/examples/vue-chat)). The transport does not hydrate history or auto-resume, so it would need an undocumented `get-messages` workaround. The `useAgent` / `useAgentChat` hooks are React-only.
+- **Why:** the Agents SDK's `useAgent` / `useAgentChat` hooks are React-only and handle history hydration and stream resumption out of the box.
 - **Cost:** none for this scope.
 
 ### Access control: passcode + HMAC cookie + rate limits
@@ -143,8 +158,11 @@ Details that matter:
 
 1. The client sends `Idempotency-Key: <uuid>` and `{mode: "normal" | "simulate_failure"}`.
 2. The server inserts a run with `id = "run-" + key` and `ON CONFLICT(idempotency_key) DO NOTHING`. A new row returns `202`; a replay returns `200` with `duplicate: true` and the same run. The same key with a different mode returns `422 idempotency_key_mismatch`.
+3. The Workflow instance id equals the run id. `ensureWorkflow` calls `RECON.create({id})` and, on any error, confirms the instance exists with `get(id).status()`. If that fails too, the API returns `503` and the row stays `queued`, so replaying the same request recovers it. `GET /api/runs/:id` does the same for a `queued` run older than 10 seconds (an idempotent side effect that changes no D1 row).
+4. D1 is the sole status authority. Every state `UPDATE` carries `WHERE status NOT IN ('complete','errored')`, and the findings `INSERT`s are guarded by `WHERE EXISTS (...)` on a non-terminal run, so a late or duplicate Workflow write cannot change a finished run.
+5. `write-findings` is one `DB.batch` of guarded inserts (`ON CONFLICT(id) DO NOTHING`) plus an increment of `write_attempts`. Retries use `{limit: 3, delay: 2s, exponential}`.
 
-**Demo reset.** **Reset data** in the header calls `DELETE /api/runs`, which deletes every run and finding in one batch; invoices and payments stay. An in-flight Workflow becomes a no-op because each of its writes requires the run row. Workflows keeps finished instances (and refuses their IDs) until the retention limit, so a key used before the reset returns `409 idempotency_key_retired` instead of creating a run that could never start; the UI forgets its last key on reset. 3. The Workflow instance id equals the run id. `ensureWorkflow` calls `RECON.create({id})` and, on any error, confirms the instance exists with `get(id).status()`. If that fails too, the API returns `503` and the row stays `queued`, so replaying the same request recovers it. `GET /api/runs/:id` does the same for a `queued` run older than 10 seconds (an idempotent side effect that changes no D1 row). 4. D1 is the sole status authority. Every state `UPDATE` carries `WHERE status NOT IN ('complete','errored')`, and the findings `INSERT`s are guarded by `WHERE EXISTS (...)` on a non-terminal run, so a late or duplicate Workflow write cannot change a finished run. 5. `write-findings` is one `DB.batch` of guarded inserts (`ON CONFLICT(id) DO NOTHING`) plus an increment of `write_attempts`. Retries use `{limit: 3, delay: 2s, exponential}`.
+**Demo reset.** **Reset data** in the header calls `DELETE /api/runs`, which deletes every run and finding in one batch; invoices and payments stay. An in-flight Workflow becomes a no-op because each of its writes requires the run row. Workflows keeps finished instances (and refuses their IDs) until the retention limit, so a key used before the reset returns `409 idempotency_key_retired` instead of creating a run that could never start; the UI forgets its last key on reset.
 
 **Simulated failure demo:** in `simulate_failure` mode the first `write-findings` attempt throws after its batch commits. The Workflow retries, the inserts become no-ops, `write_attempts` ends at 2, and the run completes with exactly 17 findings (no duplicates).
 
@@ -229,7 +247,7 @@ pnpm run db:seed:remote
 pnpm run deploy                          # prints https://recon-assistant.<subdomain>.workers.dev
 ```
 
-The checked-in `database_id` is a placeholder that works for local dev and tests only.
+The checked-in `database_id` is the live demo's database. To deploy your own copy, replace it with the id printed by `wrangler d1 create`, then run `pnpm run setup:local` again, because local D1 data is stored per `database_id`.
 
 ## Demo script
 
@@ -281,6 +299,7 @@ index.html
 migrations/0001_init.sql  5-table schema
 seed/seed.sql             Idempotent seed dataset
 docs/demo.gif, demo.mp4  README walkthrough recording
+docs/conversation.md      Development conversation transcript
 src/
   shared/                 types.ts, money.ts (formatMinor)
   server/
