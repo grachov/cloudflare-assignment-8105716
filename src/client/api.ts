@@ -32,6 +32,7 @@ export class ApiError extends Error {
 }
 
 let onUnauthorized: (() => void) | null = null;
+
 export function setOnUnauthorized(cb: (() => void) | null): void {
   onUnauthorized = cb;
 }
@@ -44,15 +45,25 @@ async function request<T>(
   opts: { handlesAuth?: boolean } = {},
 ): Promise<{ status: number; body: T }> {
   const headers = new Headers(init.headers);
-  if (init.body !== undefined) headers.set('Content-Type', 'application/json');
-  const res = await fetch(path, {
+
+  if (init.body !== undefined) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const response = await fetch(path, {
     ...init,
     headers,
     credentials: 'same-origin',
   });
-  if (res.status === 401 && !opts.handlesAuth) onUnauthorized?.();
-  const text = res.status === 204 ? '' : await res.text();
+
+  if (response.status === 401 && !opts.handlesAuth) {
+    onUnauthorized?.();
+  }
+
+  const text = response.status === 204 ? '' : await response.text();
+
   let body: unknown = null;
+
   if (text) {
     try {
       body = JSON.parse(text);
@@ -60,53 +71,83 @@ async function request<T>(
       body = null;
     }
   }
-  if (!res.ok) {
-    const msg =
+
+  if (!response.ok) {
+    const message =
       body && typeof body === 'object' && 'error' in body
         ? String((body as { error: unknown }).error)
-        : `Request failed (${res.status})`;
-    throw new ApiError(res.status, msg);
+        : `Request failed (${response.status})`;
+
+    throw new ApiError(response.status, message);
   }
-  return { status: res.status, body: body as T };
+
+  return {
+    status: response.status,
+    body: body as T,
+  };
 }
 
 export const api = {
   login: (passcode: string) =>
     request<{ ok: true }>(
       '/api/session',
-      { method: 'POST', body: JSON.stringify({ passcode }) },
-      { handlesAuth: true },
-    ).then((r) => r.body),
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          passcode,
+        }),
+      },
+      {
+        handlesAuth: true,
+      },
+    ).then(({ body }) => body),
   getSession: () =>
-    request<SessionInfo>('/api/session', {}, { handlesAuth: true }).then(
-      (r) => r.body,
-    ),
+    request<SessionInfo>(
+      '/api/session',
+      {},
+      {
+        handlesAuth: true,
+      },
+    ).then(({ body }) => body),
   logout: () =>
     request<null>(
       '/api/session',
-      { method: 'DELETE' },
-      { handlesAuth: true },
+      {
+        method: 'DELETE',
+      },
+      {
+        handlesAuth: true,
+      },
     ).then(() => undefined),
   getInvoices: () =>
-    request<InvoicesResponse>('/api/invoices').then((r) => r.body),
+    request<InvoicesResponse>('/api/invoices').then(({ body }) => body),
   startRun: (key: string, mode: RunMode) =>
     request<{ run: RunDTO; duplicate: boolean }>('/api/runs', {
       method: 'POST',
-      headers: { 'Idempotency-Key': key },
-      body: JSON.stringify({ mode }),
-    }).then((r) => ({ ...r.body, status: r.status })),
+      headers: {
+        'Idempotency-Key': key,
+      },
+      body: JSON.stringify({
+        mode,
+      }),
+    }).then((response) => ({
+      ...response.body,
+      status: response.status,
+    })),
   deleteAllRuns: () =>
     request<{ deleted: { runs: number; findings: number } }>('/api/runs', {
       method: 'DELETE',
-    }).then((r) => r.body.deleted),
+    }).then(({ body }) => body.deleted),
   listRuns: (limit = 20) =>
     request<{ runs: RunDTO[] }>(`/api/runs?limit=${limit}`).then(
-      (r) => r.body.runs,
+      ({ body }) => body.runs,
     ),
   getRun: (id: string) =>
-    request<RunDTO>(`/api/runs/${encodeURIComponent(id)}`).then((r) => r.body),
+    request<RunDTO>(`/api/runs/${encodeURIComponent(id)}`).then(
+      ({ body }) => body,
+    ),
   getFindings: (id: string, kind?: FindingKind) =>
     request<{ findings: FindingDTO[] }>(
       `/api/runs/${encodeURIComponent(id)}/findings${kind ? `?kind=${kind}` : ''}`,
-    ).then((r) => r.body.findings),
+    ).then(({ body }) => body.findings),
 };

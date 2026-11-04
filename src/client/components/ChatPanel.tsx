@@ -14,21 +14,27 @@ const PROMPTS = [
 ];
 
 // Conversation ids name the chat Durable Object; the server rejects anything that is not a UUID.
-const ConversationId = z.uuid();
+const ConversationIdSchema = z.uuid();
 const isConversationId = (v: string | null): v is string =>
-  ConversationId.safeParse(v).success;
+  ConversationIdSchema.safeParse(v).success;
 const newConversationId = (): string => crypto.randomUUID();
 
 /** The ?c= query param, else the stored id, else a new one; an invalid candidate is skipped, not used. */
 function initialConversationId(): string {
   const fromUrl = new URLSearchParams(window.location.search).get('c');
-  if (isConversationId(fromUrl)) return fromUrl;
+
+  if (isConversationId(fromUrl)) {
+    return fromUrl;
+  }
+
   let stored: string | null = null;
+
   try {
     stored = localStorage.getItem(STORAGE_KEY);
   } catch {
     /* storage unavailable */
   }
+
   return isConversationId(stored) ? stored : newConversationId();
 }
 
@@ -45,20 +51,26 @@ function persist(id: string): void {
   } catch {
     /* ignore */
   }
+
   const url = new URL(window.location.href);
+
   url.searchParams.set('c', id);
+
   history.replaceState(null, '', url);
 }
 
 export function ChatPanel() {
   const [conversationId, setConversationId] = useState(() => {
     const id = initialConversationId();
+
     persist(id);
+
     return id;
   });
 
   const newConversation = () => {
     const id = newConversationId();
+
     persist(id);
     setConversationId(id);
   };
@@ -93,6 +105,7 @@ function ToolRow({
       : state === 'output-error'
         ? 'error'
         : 'running';
+
   return (
     <div className={`tool-row tool-${label}`}>
       <code>
@@ -110,16 +123,27 @@ function ChatSession({
   conversationId: string;
   onNew: () => void;
 }) {
-  const agent = useAgent({ agent: 'chat-agent', name: conversationId });
+  const agent = useAgent({
+    agent: 'chat-agent',
+    name: conversationId,
+  });
   const { messages, sendMessage, status, stop, isStreaming, error } =
-    useAgentChat({ agent });
+    useAgentChat({
+      agent,
+    });
   const [input, setInput] = useState('');
-  const busy = isStreaming || status === 'submitted' || status === 'streaming';
-
+  const isBusy =
+    isStreaming || status === 'submitted' || status === 'streaming';
   const send = (text: string) => {
-    const t = text.trim();
-    if (!t || busy) return;
-    void sendMessage({ text: t });
+    const message = text.trim();
+
+    if (!message || isBusy) {
+      return;
+    }
+
+    void sendMessage({
+      text: message,
+    });
     setInput('');
   };
 
@@ -146,27 +170,27 @@ function ChatSession({
         {messages.length === 0 && (
           <div className="suggestions">
             <p className="muted">Try asking:</p>
-            {PROMPTS.map((p) => (
+            {PROMPTS.map((prompt) => (
               <button
-                key={p}
+                key={prompt}
                 type="button"
                 className="chip"
-                disabled={busy}
-                onClick={() => send(p)}
+                disabled={isBusy}
+                onClick={() => send(prompt)}
               >
-                {p}
+                {prompt}
               </button>
             ))}
           </div>
         )}
-        {messages.map((m) => (
-          <div key={m.id} className={`msg msg-${m.role}`}>
+        {messages.map((message) => (
+          <div key={message.id} className={`msg msg-${message.role}`}>
             <span className="msg-role">
-              {m.role === 'user' ? 'You' : 'Assistant'}
+              {message.role === 'user' ? 'You' : 'Assistant'}
             </span>
-            {m.parts.map((part, i) => {
+            {message.parts.map((part, i) => {
               if (part.type === 'text') {
-                return m.role === 'user' ? (
+                return message.role === 'user' ? (
                   <p key={i} className="msg-text">
                     {part.text}
                   </p>
@@ -181,12 +205,16 @@ function ChatSession({
                   </div>
                 );
               }
-              if (isToolUIPart(part)) return <ToolRow key={i} part={part} />;
+
+              if (isToolUIPart(part)) {
+                return <ToolRow key={i} part={part} />;
+              }
+
               return null;
             })}
           </div>
         ))}
-        {busy && (
+        {isBusy && (
           <p className="muted" aria-hidden="true">
             Thinking…
           </p>
@@ -210,7 +238,7 @@ function ChatSession({
           autoComplete="off"
           onChange={(e) => setInput(e.target.value)}
         />
-        {busy ? (
+        {isBusy ? (
           <button type="button" className="btn" onClick={() => void stop()}>
             Stop
           </button>

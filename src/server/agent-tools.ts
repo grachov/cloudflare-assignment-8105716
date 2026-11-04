@@ -25,12 +25,15 @@ export class ReadOnlyDb {
   }
 
   async query<T>(sql: string, ...params: unknown[]): Promise<T[]> {
-    if (!SELECT_ONLY.test(sql) || sql.includes(';'))
+    if (!SELECT_ONLY.test(sql) || sql.includes(';')) {
       throw new Error('ReadOnlyDb: only a single SELECT is allowed');
+    }
+
     const { results } = await this.#db
       .prepare(sql)
       .bind(...params)
       .all<T>();
+
     return results;
   }
 }
@@ -53,9 +56,13 @@ const PAYMENTS_SQL =
 const INVOICE_FINDINGS_SQL =
   'SELECT id, seq, kind, invoice_id, payment_id, expected_minor, actual_minor, delta_minor, currency, detail FROM findings WHERE run_id=?2 AND invoice_id=?1 ORDER BY seq';
 
-const RunId = z.string().regex(/^run-[0-9a-f-]{36}$/);
+const RunIdSchema = z.string().regex(/^run-[0-9a-f-]{36}$/);
 
-type Money = { minor: number; formatted: string };
+type Money = {
+  minor: number;
+  formatted: string;
+};
+
 const money = (minor: number, currency: string): Money => ({
   minor,
   formatted: formatMinor(minor, currency),
@@ -100,29 +107,30 @@ interface InvoiceRow {
   billing_interval: string;
 }
 
-const toRun = (r: RunRow) => ({
-  id: r.id,
-  mode: r.mode,
-  status: r.status,
-  asOfDate: r.as_of_date,
-  writeAttempts: r.write_attempts,
-  startedAt: r.started_at,
-  completedAt: r.completed_at,
+const toRun = (row: RunRow) => ({
+  id: row.id,
+  mode: row.mode,
+  status: row.status,
+  asOfDate: row.as_of_date,
+  writeAttempts: row.write_attempts,
+  startedAt: row.started_at,
+  completedAt: row.completed_at,
 });
 
-const toFinding = (f: FindingRow) => ({
-  id: f.id,
-  kind: f.kind,
-  invoiceId: f.invoice_id,
-  paymentId: f.payment_id,
-  expected: money(f.expected_minor, f.currency),
-  actual: money(f.actual_minor, f.currency),
-  delta: money(f.delta_minor, f.currency),
-  detail: f.detail,
+const toFinding = (row: FindingRow) => ({
+  id: row.id,
+  kind: row.kind,
+  invoiceId: row.invoice_id,
+  paymentId: row.payment_id,
+  expected: money(row.expected_minor, row.currency),
+  actual: money(row.actual_minor, row.currency),
+  delta: money(row.delta_minor, row.currency),
+  detail: row.detail,
 });
 
 async function latestCompleteRunId(db: ReadOnlyDb): Promise<string | null> {
   const [row] = await db.query<{ id: string }>(LATEST_COMPLETE_RUN_SQL);
+
   return row?.id ?? null;
 }
 
@@ -132,8 +140,13 @@ async function resolveRun(
   runId: string | undefined,
 ): Promise<RunRow | null> {
   const id = runId ?? (await latestCompleteRunId(db));
-  if (id === null) return null;
+
+  if (id === null) {
+    return null;
+  }
+
   const [run] = await db.query<RunRow>(RUN_SQL, id);
+
   return run ?? null;
 }
 
@@ -152,25 +165,34 @@ export function createTools(db: ReadOnlyDb) {
     getRunSummary: tool({
       description:
         'Summarise one reconciliation run: finding counts and total deltas per kind and currency. Defaults to the latest complete run.',
-      inputSchema: z.object({ runId: RunId.optional() }),
+      inputSchema: z.object({
+        runId: RunIdSchema.optional(),
+      }),
       execute: async ({ runId }) => {
         const run = await resolveRun(db, runId);
-        if (run === null)
-          return { found: false as const, runId: runId ?? null };
+
+        if (run === null) {
+          return {
+            found: false as const,
+            runId: runId ?? null,
+          };
+        }
+
         const rows = await db.query<{
           kind: FindingKind;
           currency: string;
           n: number;
           d: number;
         }>(RUN_SUMMARY_SQL, run.id);
+
         return {
           found: true as const,
           run: toRun(run),
-          byKind: rows.map((r) => ({
-            kind: r.kind,
-            currency: r.currency,
-            count: r.n,
-            totalDelta: money(r.d, r.currency),
+          byKind: rows.map((row) => ({
+            kind: row.kind,
+            currency: row.currency,
+            count: row.n,
+            totalDelta: money(row.d, row.currency),
           })),
         };
       },
@@ -180,20 +202,27 @@ export function createTools(db: ReadOnlyDb) {
       description:
         'List findings of a reconciliation run in engine order, optionally filtered by kind. Defaults to the latest complete run.',
       inputSchema: z.object({
-        runId: RunId.optional(),
+        runId: RunIdSchema.optional(),
         kind: z.enum(KINDS).optional(),
         limit: z.number().int().min(1).max(50).default(50),
       }),
       execute: async ({ runId, kind, limit }) => {
         const run = await resolveRun(db, runId);
-        if (run === null)
-          return { found: false as const, runId: runId ?? null };
+
+        if (run === null) {
+          return {
+            found: false as const,
+            runId: runId ?? null,
+          };
+        }
+
         const rows = await db.query<FindingRow>(
           LIST_FINDINGS_SQL,
           run.id,
           kind ?? null,
           limit,
         );
+
         return {
           found: true as const,
           runId: run.id,
@@ -205,10 +234,19 @@ export function createTools(db: ReadOnlyDb) {
     getInvoice: tool({
       description:
         'Look up one invoice with its subscription, its payments, and its findings in the latest complete run.',
-      inputSchema: z.object({ invoiceId: z.string().min(1).max(32) }),
+      inputSchema: z.object({
+        invoiceId: z.string().min(1).max(32),
+      }),
       execute: async ({ invoiceId }) => {
-        const [inv] = await db.query<InvoiceRow>(INVOICE_SQL, invoiceId);
-        if (inv === undefined) return { found: false as const, invoiceId };
+        const [invoice] = await db.query<InvoiceRow>(INVOICE_SQL, invoiceId);
+
+        if (invoice === undefined) {
+          return {
+            found: false as const,
+            invoiceId,
+          };
+        }
+
         const payments = await db.query<{
           id: string;
           amount_minor: number;
@@ -225,28 +263,32 @@ export function createTools(db: ReadOnlyDb) {
                 invoiceId,
                 run.id,
               );
+
         return {
           found: true as const,
           invoice: {
-            id: inv.id,
-            periodStart: inv.period_start,
-            periodEnd: inv.period_end,
-            amount: money(inv.amount_minor, inv.currency),
-            issuedAt: inv.issued_at,
-            dueAt: inv.due_at,
+            id: invoice.id,
+            periodStart: invoice.period_start,
+            periodEnd: invoice.period_end,
+            amount: money(invoice.amount_minor, invoice.currency),
+            issuedAt: invoice.issued_at,
+            dueAt: invoice.due_at,
           },
           subscription: {
-            id: inv.subscription_id,
-            customerName: inv.customer_name,
-            plan: inv.plan,
-            unitPrice: money(inv.unit_price_minor, inv.subscription_currency),
-            billingInterval: inv.billing_interval,
+            id: invoice.subscription_id,
+            customerName: invoice.customer_name,
+            plan: invoice.plan,
+            unitPrice: money(
+              invoice.unit_price_minor,
+              invoice.subscription_currency,
+            ),
+            billingInterval: invoice.billing_interval,
           },
-          payments: payments.map((p) => ({
-            id: p.id,
-            amount: money(p.amount_minor, p.currency),
-            receivedAt: p.received_at,
-            providerRef: p.provider_ref,
+          payments: payments.map((payment) => ({
+            id: payment.id,
+            amount: money(payment.amount_minor, payment.currency),
+            receivedAt: payment.received_at,
+            providerRef: payment.provider_ref,
           })),
           findings: findings.map(toFinding),
           runId: run?.id ?? null,
@@ -295,8 +337,17 @@ export async function chatPreflight({
   sid: string | null | undefined;
   userMessageCount: number;
 }): Promise<string | null> {
-  if (!sid) return SESSION_EXPIRED_TEXT;
-  if (userMessageCount > CONVERSATION_CAP) return CAP_TEXT;
-  if (!(await limiter.limit({ key: sid })).success) return SLOW_DOWN_TEXT;
+  if (!sid) {
+    return SESSION_EXPIRED_TEXT;
+  }
+
+  if (userMessageCount > CONVERSATION_CAP) {
+    return CAP_TEXT;
+  }
+
+  if (!(await limiter.limit({ key: sid })).success) {
+    return SLOW_DOWN_TEXT;
+  }
+
   return null;
 }

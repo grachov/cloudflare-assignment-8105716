@@ -16,15 +16,23 @@ export function App() {
 
   useEffect(() => {
     setOnUnauthorized(() => setAuth('out'));
+
     api
       .getSession()
       .then(() => setAuth('in'))
       .catch(() => setAuth('out'));
+
     return () => setOnUnauthorized(null);
   }, []);
 
-  if (auth === 'loading') return <p className="muted center">Loading…</p>;
-  if (auth === 'out') return <LoginForm onSuccess={() => setAuth('in')} />;
+  if (auth === 'loading') {
+    return <p className="muted center">Loading…</p>;
+  }
+
+  if (auth === 'out') {
+    return <LoginForm onSuccess={() => setAuth('in')} />;
+  }
+
   return <Main onLogout={() => setAuth('out')} />;
 }
 
@@ -33,10 +41,10 @@ function Main({ onLogout }: { onLogout: () => void }) {
   const [asOf, setAsOf] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [runId, setRunId] = useState<string | null>(null);
-  const [duplicate, setDuplicate] = useState(false);
+  const [isDuplicate, setIsDuplicate] = useState(false);
   // Bumped by a data reset; remounts RunControls so it forgets the last request key.
   const [resetCount, setResetCount] = useState(0);
-  const [resetting, setResetting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
@@ -53,26 +61,29 @@ function Main({ onLogout }: { onLogout: () => void }) {
       !window.confirm(
         'Delete all reconciliation runs and findings? Invoices and payments are kept.',
       )
-    )
+    ) {
       return;
-    setResetting(true);
+    }
+
+    setIsResetting(true);
+
     try {
       await api.deleteAllRuns();
       setRunId(null);
-      setDuplicate(false);
+      setIsDuplicate(false);
       setTab('invoices');
       setResetCount((n) => n + 1);
       refresh();
-    } catch (e) {
-      window.alert(`Could not reset data: ${(e as Error).message}`);
+    } catch (error) {
+      window.alert(`Could not reset data: ${(error as Error).message}`);
     } finally {
-      setResetting(false);
+      setIsResetting(false);
     }
   };
 
   const onRun = (id: string, dup: boolean) => {
     setRunId(id);
-    setDuplicate(dup);
+    setIsDuplicate(dup);
     setTab('runs');
     refresh();
   };
@@ -86,9 +97,9 @@ function Main({ onLogout }: { onLogout: () => void }) {
           type="button"
           className="btn small"
           onClick={resetData}
-          disabled={resetting}
+          disabled={isResetting}
         >
-          {resetting ? 'Resetting…' : 'Reset data'}
+          {isResetting ? 'Resetting…' : 'Reset data'}
         </button>
         <button type="button" className="btn small" onClick={logout}>
           Log out
@@ -99,18 +110,18 @@ function Main({ onLogout }: { onLogout: () => void }) {
         <main className="content">
           <RunControls key={resetCount} onRun={onRun} />
           <div role="tablist" aria-label="Views" className="tabs">
-            {(['invoices', 'runs'] as const).map((t) => (
+            {(['invoices', 'runs'] as const).map((type) => (
               <button
-                key={t}
+                key={type}
                 type="button"
                 role="tab"
-                id={`tab-${t}`}
-                aria-selected={tab === t}
-                aria-controls={`panel-${t}`}
+                id={`tab-${type}`}
+                aria-selected={tab === type}
+                aria-controls={`panel-${type}`}
                 className="tab"
-                onClick={() => setTab(t)}
+                onClick={() => setTab(type)}
               >
-                {t === 'invoices' ? 'Invoices' : 'Runs'}
+                {type === 'invoices' ? 'Invoices' : 'Runs'}
               </button>
             ))}
           </div>
@@ -123,7 +134,7 @@ function Main({ onLogout }: { onLogout: () => void }) {
           >
             <InvoicesTable
               refreshKey={refreshKey}
-              onLoaded={(d) => setAsOf(d.asOfDate)}
+              onLoaded={({ asOfDate }) => setAsOf(asOfDate)}
             />
           </div>
           <div
@@ -138,13 +149,13 @@ function Main({ onLogout }: { onLogout: () => void }) {
                 selectedId={runId}
                 onSelect={(id) => {
                   setRunId(id);
-                  setDuplicate(false);
+                  setIsDuplicate(false);
                 }}
               />
               {runId ? (
                 <RunDetail
                   runId={runId}
-                  duplicate={duplicate}
+                  isDuplicate={isDuplicate}
                   onTerminal={refresh}
                 />
               ) : (

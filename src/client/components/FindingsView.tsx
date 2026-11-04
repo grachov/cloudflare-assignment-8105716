@@ -14,35 +14,55 @@ export function FindingsView({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
+    if (!enabled) {
+      return;
+    }
+
+    let isCancelled = false;
+
     setFindings(null);
+
     api
       .getFindings(runId)
-      .then((f) => !cancelled && setFindings(f))
-      .catch((e: Error) => !cancelled && setError(e.message));
+      .then((findings) => !isCancelled && setFindings(findings))
+      .catch((error: Error) => !isCancelled && setError(error.message));
+
     return () => {
-      cancelled = true;
+      isCancelled = true;
     };
   }, [runId, enabled]);
 
-  if (!enabled)
+  if (!enabled) {
     return <p className="muted">Findings appear when the run completes.</p>;
-  if (error)
+  }
+
+  if (error) {
     return (
       <p role="alert" className="error-text">
         Could not load findings: {error}
       </p>
     );
-  if (!findings) return <p className="muted">Loading findings…</p>;
-  if (findings.length === 0) return <p className="muted">No findings.</p>;
+  }
+
+  if (!findings) {
+    return <p className="muted">Loading findings…</p>;
+  }
+
+  if (findings.length === 0) {
+    return <p className="muted">No findings.</p>;
+  }
 
   // Groups keep the order in which kinds first appear (seq order).
   const groups = new Map<FindingKind, FindingDTO[]>();
-  for (const f of findings) {
-    const list = groups.get(f.kind);
-    if (list) list.push(f);
-    else groups.set(f.kind, [f]);
+
+  for (const finding of findings) {
+    const list = groups.get(finding.kind);
+
+    if (list) {
+      list.push(finding);
+    } else {
+      groups.set(finding.kind, [finding]);
+    }
   }
 
   return (
@@ -75,21 +95,23 @@ export function FindingsView({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((f) => (
-                  <tr key={f.id}>
+                {rows.map((finding) => (
+                  <tr key={finding.id}>
                     <th scope="row" className="mono">
-                      {[f.invoice_id, f.payment_id].filter(Boolean).join(' / ')}
+                      {[finding.invoice_id, finding.payment_id]
+                        .filter(Boolean)
+                        .join(' / ')}
                     </th>
                     <td className="num">
-                      {formatMinor(f.expected_minor, f.currency)}
+                      {formatMinor(finding.expected_minor, finding.currency)}
                     </td>
                     <td className="num">
-                      {formatMinor(f.actual_minor, f.currency)}
+                      {formatMinor(finding.actual_minor, finding.currency)}
                     </td>
                     <td className="num">
-                      {formatMinor(f.delta_minor, f.currency)}
+                      {formatMinor(finding.delta_minor, finding.currency)}
                     </td>
-                    <td>{f.detail}</td>
+                    <td>{finding.detail}</td>
                   </tr>
                 ))}
               </tbody>

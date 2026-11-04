@@ -14,29 +14,38 @@ export function InvoicesTable({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    let isCancelled = false;
+
     api
       .getInvoices()
-      .then((d) => {
-        if (cancelled) return;
-        setData(d);
+      .then((data) => {
+        if (isCancelled) {
+          return;
+        }
+
+        setData(data);
         setError(null);
-        onLoaded?.(d);
+        onLoaded?.(data);
       })
-      .catch((e: Error) => !cancelled && setError(e.message));
+      .catch((error: Error) => !isCancelled && setError(error.message));
+
     return () => {
-      cancelled = true;
+      isCancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
-  if (error)
+  if (error) {
     return (
       <p role="alert" className="error-text">
         Could not load invoices: {error}
       </p>
     );
-  if (!data) return <p className="muted">Loading invoices…</p>;
+  }
+
+  if (!data) {
+    return <p className="muted">Loading invoices…</p>;
+  }
 
   return (
     <div
@@ -64,31 +73,31 @@ export function InvoicesTable({
           </tr>
         </thead>
         <tbody>
-          {data.invoices.map((inv) => (
-            <tr key={inv.id}>
+          {data.invoices.map((invoice) => (
+            <tr key={invoice.id}>
               <th scope="row" className="mono">
-                {inv.id}
+                {invoice.id}
               </th>
-              <td>{inv.customer}</td>
+              <td>{invoice.customer}</td>
               <td className="nowrap">
-                {inv.period_start} – {inv.period_end}
+                {invoice.period_start} – {invoice.period_end}
               </td>
               <td className="num">
-                {formatMinor(inv.amount_minor, inv.currency)}
+                {formatMinor(invoice.amount_minor, invoice.currency)}
               </td>
               <td className="num">
                 {formatMinor(
-                  inv.paid_minor - inv.duplicate_minor,
-                  inv.currency,
+                  invoice.paid_minor - invoice.duplicate_minor,
+                  invoice.currency,
                 )}
               </td>
               <td className="num">
-                {inv.duplicate_minor > 0
-                  ? formatMinor(inv.duplicate_minor, inv.currency)
+                {invoice.duplicate_minor > 0
+                  ? formatMinor(invoice.duplicate_minor, invoice.currency)
                   : ''}
               </td>
               <td>
-                <StatusBadge status={inv.status} />
+                <StatusBadge status={invoice.status} />
               </td>
             </tr>
           ))}

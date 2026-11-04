@@ -9,66 +9,91 @@ import {
 } from '../labels';
 import { RUN_STEPS } from '../../shared/types';
 
-const isTerminal = (r: RunDTO | null) =>
-  r?.status === 'complete' || r?.status === 'errored';
+const isTerminal = (run: RunDTO | null) =>
+  run?.status === 'complete' || run?.status === 'errored';
 
 function stepState(
   run: RunDTO,
   index: number,
 ): 'done' | 'active' | 'pending' | 'failed' {
-  if (run.status === 'complete') return 'done';
+  if (run.status === 'complete') {
+    return 'done';
+  }
+
   const current = Math.max(
     0,
-    RUN_STEPS.findIndex((s) => s === run.current_step),
+    RUN_STEPS.findIndex((step) => step === run.current_step),
   );
-  if (index < current) return 'done';
-  if (index === current) return run.status === 'errored' ? 'failed' : 'active';
+
+  if (index < current) {
+    return 'done';
+  }
+
+  if (index === current) {
+    return run.status === 'errored' ? 'failed' : 'active';
+  }
+
   return 'pending';
 }
 
 export function RunDetail({
   runId,
-  duplicate,
+  isDuplicate,
   onTerminal,
 }: {
   runId: string;
-  duplicate: boolean;
+  isDuplicate: boolean;
   onTerminal: (run: RunDTO) => void;
 }) {
   const [run, setRun] = useState<RunDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
   const notified = useRef<string | null>(null);
   const onTerminalRef = useRef(onTerminal);
+
   onTerminalRef.current = onTerminal;
 
   useEffect(() => {
-    let cancelled = false;
+    let isCancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+
     setRun(null);
     setError(null);
 
     const tick = async () => {
       try {
-        const r = await api.getRun(runId);
-        if (cancelled) return;
-        setRun(r);
-        setError(null);
-        if (isTerminal(r)) {
-          if (notified.current !== r.id) {
-            notified.current = r.id;
-            onTerminalRef.current(r);
-          }
+        const run = await api.getRun(runId);
+
+        if (isCancelled) {
           return;
         }
-      } catch (e) {
-        if (cancelled) return;
-        setError((e as Error).message);
+
+        setRun(run);
+        setError(null);
+
+        if (isTerminal(run)) {
+          if (notified.current !== run.id) {
+            notified.current = run.id;
+            onTerminalRef.current(run);
+          }
+
+          return;
+        }
+      } catch (error) {
+        if (isCancelled) {
+          return;
+        }
+
+        setError((error as Error).message);
       }
-      timer = setTimeout(tick, 1000);
+
+      timer = setTimeout(tick, 1_000);
     };
+
     void tick();
+
     return () => {
-      cancelled = true;
+      isCancelled = true;
+
       clearTimeout(timer);
     };
   }, [runId]);
@@ -85,7 +110,7 @@ export function RunDetail({
 
   return (
     <article className="card run-detail" aria-label={`Run ${run.id}`}>
-      {duplicate && (
+      {isDuplicate && (
         <div role="status" className="banner info">
           Duplicate request — existing run returned
         </div>
@@ -103,19 +128,20 @@ export function RunDetail({
       </header>
 
       <ol className="steps" aria-label="Progress">
-        {RUN_STEPS.map((s, i) => {
-          const st = stepState(run, i);
+        {RUN_STEPS.map((step, i) => {
+          const state = stepState(run, i);
+
           return (
             <li
-              key={s}
-              className={`step step-${st}`}
-              aria-current={st === 'active' ? 'step' : undefined}
+              key={step}
+              className={`step step-${state}`}
+              aria-current={state === 'active' ? 'step' : undefined}
             >
               <span className="step-dot" aria-hidden="true">
-                {st === 'done' ? '✓' : st === 'failed' ? '✕' : i + 1}
+                {state === 'done' ? '✓' : state === 'failed' ? '✕' : i + 1}
               </span>
-              <span>{RUN_STEP_LABELS[s]}</span>
-              <span className="visually-hidden"> ({st})</span>
+              <span>{RUN_STEP_LABELS[step]}</span>
+              <span className="visually-hidden"> ({state})</span>
             </li>
           );
         })}
@@ -153,10 +179,10 @@ export function RunDetail({
 
       {run.summary.length > 0 && (
         <ul className="summary" aria-label="Summary by kind and currency">
-          {run.summary.map((s) => (
-            <li key={`${s.kind}-${s.currency}`}>
-              <strong>{s.count}</strong> {KIND_LABELS[s.kind]}{' '}
-              <span className="muted">{s.currency}</span>
+          {run.summary.map((row) => (
+            <li key={`${row.kind}-${row.currency}`}>
+              <strong>{row.count}</strong> {KIND_LABELS[row.kind]}{' '}
+              <span className="muted">{row.currency}</span>
             </li>
           ))}
         </ul>

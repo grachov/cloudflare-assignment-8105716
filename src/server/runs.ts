@@ -9,7 +9,11 @@ import {
 } from '../shared/types';
 import type { FindingRow } from './findings';
 
-export type ReconParams = { runId: string; mode: RunMode; asOfDate: string };
+export type ReconParams = {
+  runId: string;
+  mode: RunMode;
+  asOfDate: string;
+};
 
 export interface RunRow {
   id: string;
@@ -43,19 +47,27 @@ export async function ensureWorkflow(
   params: ReconParams,
 ): Promise<EnsuredWorkflow> {
   try {
-    await env.RECON.create({ id, params });
+    await env.RECON.create({
+      id,
+      params,
+    });
+
     return 'created';
-  } catch (e) {
+  } catch (error) {
     try {
       return (await (await env.RECON.get(id)).status()).status;
     } catch {
-      throw e;
+      throw error;
     }
   }
 }
 
 export function paramsOf(row: RunRow): ReconParams {
-  return { runId: row.id, mode: row.mode, asOfDate: row.as_of_date };
+  return {
+    runId: row.id,
+    mode: row.mode,
+    asOfDate: row.as_of_date,
+  };
 }
 
 /** Returns true when a new row was inserted, false when the idempotency key already exists. */
@@ -77,6 +89,7 @@ export async function insertRun(
     )
     .bind(run.id, run.key, run.mode, run.asOfDate, run.startedAt)
     .first<{ id: string }>();
+
   return row !== null;
 }
 
@@ -107,6 +120,7 @@ export async function listRuns(
     )
     .bind(limit)
     .all<RunRow>();
+
   return results;
 }
 
@@ -115,14 +129,15 @@ export async function markRunning(
   id: string,
   datasetHash: string,
 ): Promise<number> {
-  const res = await db
+  const { meta } = await db
     .prepare(
       `UPDATE reconciliation_runs SET status = 'running', current_step = 'load-and-reconcile', dataset_hash = ?2
        WHERE id = ?1 AND ${NOT_TERMINAL}`,
     )
     .bind(id, datasetHash)
     .run();
-  return res.meta.changes;
+
+  return meta.changes;
 }
 
 const INSERT_FINDING_SQL = `INSERT INTO findings
@@ -172,7 +187,11 @@ export async function writeFindings(
   ]);
   const last = results[results.length - 1];
   const inserted = results.slice(0, -1).reduce((n, r) => n + r.meta.changes, 0);
-  return { inserted, attempt: last.results[0] ?? null };
+
+  return {
+    inserted,
+    attempt: last.results[0] ?? null,
+  };
 }
 
 export async function markComplete(
@@ -182,16 +201,20 @@ export async function markComplete(
 ): Promise<number> {
   const summary = await findingsSummary(db, [id]);
   const summaryJson = JSON.stringify(
-    summary.get(id) ?? { findings_count: 0, summary: [] },
+    summary.get(id) ?? {
+      findings_count: 0,
+      summary: [],
+    },
   );
-  const res = await db
+  const { meta } = await db
     .prepare(
       `UPDATE reconciliation_runs SET status = 'complete', current_step = 'complete', completed_at = ?2, summary_json = ?3
        WHERE id = ?1 AND ${NOT_TERMINAL}`,
     )
     .bind(id, completedAt, summaryJson)
     .run();
-  return res.meta.changes;
+
+  return meta.changes;
 }
 
 export async function markErrored(
@@ -199,16 +222,20 @@ export async function markErrored(
   id: string,
   error: string,
 ): Promise<number> {
-  const res = await db
+  const { meta } = await db
     .prepare(
       `UPDATE reconciliation_runs SET status = 'errored', error = ?2 WHERE id = ?1 AND ${NOT_TERMINAL}`,
     )
     .bind(id, error)
     .run();
-  return res.meta.changes;
+
+  return meta.changes;
 }
 
-type RunSummary = { findings_count: number; summary: RunSummaryRow[] };
+type RunSummary = {
+  findings_count: number;
+  summary: RunSummaryRow[];
+};
 
 /** Per run: findings count plus {kind, currency, count} grouped by kind and currency, in first-seq order. */
 async function findingsSummary(
@@ -224,12 +251,23 @@ async function findingsSummary(
     .bind(JSON.stringify(runIds))
     .all<RunSummaryRow & { run_id: string }>();
   const byRun = new Map<string, RunSummary>();
-  for (const { run_id, kind, currency, count } of results) {
-    const entry = byRun.get(run_id) ?? { findings_count: 0, summary: [] };
+
+  for (const { run_id: runId, kind, currency, count } of results) {
+    const entry = byRun.get(runId) ?? {
+      findings_count: 0,
+      summary: [],
+    };
+
     entry.findings_count += count;
-    entry.summary.push({ kind, currency, count });
-    byRun.set(run_id, entry);
+    entry.summary.push({
+      kind,
+      currency,
+      count,
+    });
+
+    byRun.set(runId, entry);
   }
+
   return byRun;
 }
 
@@ -244,6 +282,7 @@ export async function toRunDTOs(
           rows.map((run) => run.id),
         )
       : new Map<string, RunSummary>();
+
   return rows.map((run) => ({
     id: run.id,
     mode: run.mode,
@@ -276,7 +315,11 @@ export async function deleteAllRuns(
     db.prepare('DELETE FROM findings'),
     db.prepare('DELETE FROM reconciliation_runs'),
   ]);
-  return { runs: runs.meta.changes, findings: findings.meta.changes };
+
+  return {
+    runs: runs.meta.changes,
+    findings: findings.meta.changes,
+  };
 }
 
 /** Deletes a run only while it is still queued; returns true when a row was removed. */
@@ -284,11 +327,12 @@ export async function deleteQueuedRun(
   db: D1Database,
   id: string,
 ): Promise<boolean> {
-  const res = await db
+  const { meta } = await db
     .prepare(
       "DELETE FROM reconciliation_runs WHERE id = ?1 AND status = 'queued'",
     )
     .bind(id)
     .run();
-  return res.meta.changes > 0;
+
+  return meta.changes > 0;
 }

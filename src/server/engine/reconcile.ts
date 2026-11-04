@@ -8,6 +8,7 @@ import { DatasetValidationError, type Dataset, type Payment } from './types';
 function isCalendarDate(isoDate: string): boolean {
   const [year, month, dayOfMonth] = isoDate.split('-').map(Number);
   const date = new Date(Date.UTC(year, month - 1, dayOfMonth));
+
   return (
     date.getUTCFullYear() === year &&
     date.getUTCMonth() === month - 1 &&
@@ -27,39 +28,39 @@ function toDay(dateOrTimestamp: string): string {
   return dateOrTimestamp.slice(0, 10);
 }
 
-const Day = z
+const DaySchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}/, 'expected a YYYY-MM-DD date')
   .refine((value) => isCalendarDate(toDay(value)), 'not a calendar date');
-const Currency = z.enum(['USD', 'EUR']);
-const Id = z.string().min(1);
+const CurrencySchema = z.enum(['USD', 'EUR']);
+const IdSchema = z.string().min(1);
 
 const SubscriptionSchema = z.object({
-  id: Id,
+  id: IdSchema,
   customer_name: z.string(),
   plan: z.string(),
   unit_price_minor: z.int().min(0),
-  currency: Currency,
+  currency: CurrencySchema,
   billing_interval: z.string(),
 });
 
 const InvoiceSchema = z.object({
-  id: Id,
+  id: IdSchema,
   subscription_id: z.string(),
-  period_start: Day,
-  period_end: Day,
+  period_start: DaySchema,
+  period_end: DaySchema,
   amount_minor: z.int().min(0),
-  currency: Currency,
-  issued_at: Day,
-  due_at: Day,
+  currency: CurrencySchema,
+  issued_at: DaySchema,
+  due_at: DaySchema,
 });
 
 const PaymentSchema = z.object({
-  id: Id,
+  id: IdSchema,
   invoice_ref: z.string().nullable(),
   amount_minor: z.int().min(1),
-  currency: Currency,
-  received_at: Day,
+  currency: CurrencySchema,
+  received_at: DaySchema,
   provider_ref: z.string(),
 });
 
@@ -69,13 +70,16 @@ function checkUniqueIds(
   ctx: z.RefinementCtx,
 ): void {
   const seen = new Set<string>();
+
   rows.forEach((row, index) => {
-    if (seen.has(row.id))
+    if (seen.has(row.id)) {
       ctx.addIssue({
         code: 'custom',
         path: [table, index, 'id'],
         message: `duplicate id ${row.id}`,
       });
+    }
+
     seen.add(row.id);
   });
 }
@@ -103,6 +107,7 @@ const DatasetSchema = z
       const subscriptionCurrency = currencyBySubscription.get(
         invoice.subscription_id,
       );
+
       if (subscriptionCurrency !== invoice.currency)
         ctx.addIssue({
           code: 'custom',
@@ -120,20 +125,32 @@ const DatasetSchema = z
         payment.invoice_ref === null
           ? undefined
           : currencyByInvoice.get(payment.invoice_ref);
-      if (invoiceCurrency !== undefined && invoiceCurrency !== payment.currency)
+
+      if (
+        invoiceCurrency !== undefined &&
+        invoiceCurrency !== payment.currency
+      ) {
         ctx.addIssue({
           code: 'custom',
           path: ['payments', index, 'currency'],
           message: `currency ${payment.currency} differs from invoice ${payment.invoice_ref} currency ${invoiceCurrency}`,
         });
+      }
     });
   });
 
 /** R0: throws DatasetValidationError on any invalid input. */
 export function validateDataset(dataset: Dataset, asOfDate: string): void {
   const result = z
-    .object({ asOfDate: Day, dataset: DatasetSchema })
-    .safeParse({ asOfDate, dataset });
+    .object({
+      asOfDate: DaySchema,
+      dataset: DatasetSchema,
+    })
+    .safeParse({
+      asOfDate,
+      dataset,
+    });
+
   if (!result.success) {
     throw new DatasetValidationError(
       result.error.issues
@@ -179,19 +196,20 @@ function byFindingOrder(
 
 export function reconcile(dataset: Dataset, asOfDate: string): Finding[] {
   validateDataset(dataset, asOfDate);
+
   const asOfDay = toDay(asOfDate);
   const findings: UnsequencedFinding[] = [];
-
   // R1: ignore payments received after the as-of date.
   const receivedPayments = dataset.payments.filter(
     (payment) => toDay(payment.received_at) <= asOfDay,
   );
-
   // R2: group by explicit invoice_ref; null or unknown refs are unmatched.
   const invoiceIds = new Set(dataset.invoices.map((invoice) => invoice.id));
   const paymentsByInvoice = new Map<string, Payment[]>();
+
   for (const payment of receivedPayments) {
     const ref = payment.invoice_ref;
+
     if (ref === null || !invoiceIds.has(ref)) {
       findings.push({
         kind: 'unmatched_payment',
@@ -206,11 +224,17 @@ export function reconcile(dataset: Dataset, asOfDate: string): Finding[] {
             ? 'Payment has no invoice reference'
             : `Payment references unknown invoice ${ref}`,
       });
+
       continue;
     }
+
     const invoicePayments = paymentsByInvoice.get(ref);
-    if (invoicePayments) invoicePayments.push(payment);
-    else paymentsByInvoice.set(ref, [payment]);
+
+    if (invoicePayments) {
+      invoicePayments.push(payment);
+    } else {
+      paymentsByInvoice.set(ref, [payment]);
+    }
   }
 
   for (const invoice of dataset.invoices) {
@@ -219,15 +243,16 @@ export function reconcile(dataset: Dataset, asOfDate: string): Finding[] {
     const payments = (paymentsByInvoice.get(invoice.id) ?? [])
       .slice()
       .sort(byReceivedThenId);
-
     // R4: full-amount payments beyond the first are duplicates and are excluded from the net total.
     const fullPayments =
       invoiceAmount > 0
         ? payments.filter((payment) => payment.amount_minor === invoiceAmount)
         : [];
     const duplicates = new Set<Payment>();
+
     if (fullPayments.length >= 2) {
       const [settlingPayment, ...repeatedPayments] = fullPayments;
+
       for (const duplicate of repeatedPayments) {
         duplicates.add(duplicate);
         findings.push({

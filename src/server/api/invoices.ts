@@ -18,13 +18,13 @@ const INVOICES_SQL = `SELECT i.id, s.customer_name AS customer, i.period_start, 
   FROM invoices i JOIN subscriptions s ON s.id = i.subscription_id
   ORDER BY i.id`;
 
-export const invoiceRoutes = new Hono<AppEnv>().get('/', async (c) => {
-  const db = c.env.DB;
-  const latest = await db
+export const invoiceRoutes = new Hono<AppEnv>().get('/', async (ctx) => {
+  const db = ctx.env.DB;
+  const latestRun = await db
     .prepare(LATEST_COMPLETE_RUN_SQL)
     .first<{ id: string; as_of_date: string }>();
-  const latestRunId = latest?.id ?? null;
-  const asOfDate = latest?.as_of_date ?? c.env.AS_OF_DATE;
+  const latestRunId = latestRun?.id ?? null;
+  const asOfDate = latestRun?.as_of_date ?? ctx.env.AS_OF_DATE;
   const { results } = await db
     .prepare(INVOICES_SQL)
     .bind(asOfDate, latestRunId)
@@ -33,5 +33,10 @@ export const invoiceRoutes = new Hono<AppEnv>().get('/', async (c) => {
     ...row,
     status: latestRunId === null ? 'not_reconciled' : (finding_kind ?? 'open'),
   }));
-  return c.json({ asOfDate, latestRunId, invoices });
+
+  return ctx.json({
+    asOfDate,
+    latestRunId,
+    invoices,
+  });
 });

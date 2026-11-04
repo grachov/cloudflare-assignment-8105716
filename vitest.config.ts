@@ -42,9 +42,14 @@ export default defineConfig({
               },
               // Workers AI is remote-only. Merging cannot delete the wrangler.jsonc `ai` binding, so it is renamed
               // out of the way and `AI` is bound to the throwing stub instead.
-              ai: { binding: 'AI_REMOTE_UNUSED' },
+              ai: {
+                binding: 'AI_REMOTE_UNUSED',
+              },
               serviceBindings: {
-                AI: { name: 'ai-stub', entrypoint: 'AiStub' },
+                AI: {
+                  name: 'ai-stub',
+                  entrypoint: 'AiStub',
+                },
               },
               workers: [
                 {

@@ -10,29 +10,67 @@ import {
 } from '../auth';
 import { throwOnInvalid, type AppEnv } from '../http';
 
-const loginBody = z.object({ passcode: z.string().min(1).max(256) });
+const LoginBodySchema = z.object({
+  passcode: z.string().min(1).max(256),
+});
 
 // Public router (registered before requireSession). LOGIN_LIMITER, 5 per 60s per client IP.
 export const sessionRoutes = new Hono<AppEnv>()
-  .post('/', zValidator('json', loginBody, throwOnInvalid), async (c) => {
-    const ip = c.req.header('CF-Connecting-IP') ?? 'local';
-    const { success } = await c.env.LOGIN_LIMITER.limit({ key: ip });
-    if (!success) return c.json({ error: 'rate_limited' }, 429);
-    if (!(await verifyPasscode(c.env, c.req.valid('json').passcode)))
-      return c.json({ error: 'unauthorized' }, 401);
-    const { token } = await signSession(c.env);
-    c.header('Set-Cookie', sessionCookie(token));
-    return c.json({ ok: true });
-  })
-  .get('/', async (c) => {
-    const session = await readSession(c.req.raw, c.env);
-    if (!session) return c.json({ error: 'unauthorized' }, 401);
-    return c.json({
+  .post(
+    '/',
+    zValidator('json', LoginBodySchema, throwOnInvalid),
+    async (ctx) => {
+      const ip = ctx.req.header('CF-Connecting-IP') ?? 'local';
+      const { success } = await ctx.env.LOGIN_LIMITER.limit({
+        key: ip,
+      });
+
+      if (!success) {
+        return ctx.json(
+          {
+            error: 'rate_limited',
+          },
+          429,
+        );
+      }
+
+      if (!(await verifyPasscode(ctx.env, ctx.req.valid('json').passcode))) {
+        return ctx.json(
+          {
+            error: 'unauthorized',
+          },
+          401,
+        );
+      }
+
+      const { token } = await signSession(ctx.env);
+
+      ctx.header('Set-Cookie', sessionCookie(token));
+
+      return ctx.json({
+        ok: true,
+      });
+    },
+  )
+  .get('/', async (ctx) => {
+    const session = await readSession(ctx.req.raw, ctx.env);
+
+    if (!session) {
+      return ctx.json(
+        {
+          error: 'unauthorized',
+        },
+        401,
+      );
+    }
+
+    return ctx.json({
       authenticated: true,
-      expiresAt: new Date(session.exp * 1000).toISOString(),
+      expiresAt: new Date(session.exp * 1_000).toISOString(),
     });
   })
-  .delete('/', (c) => {
-    c.header('Set-Cookie', clearedSessionCookie());
-    return c.body(null, 204);
+  .delete('/', (ctx) => {
+    ctx.header('Set-Cookie', clearedSessionCookie());
+
+    return ctx.body(null, 204);
   });

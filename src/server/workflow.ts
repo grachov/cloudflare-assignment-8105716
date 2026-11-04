@@ -35,13 +35,13 @@ export class ReconWorkflow extends WorkflowEntrypoint<Env, ReconParams> {
 
         try {
           result = reconcile(dataset, asOfDate);
-        } catch (e) {
+        } catch (error) {
           // Bad data never heals on retry.
-          if (e instanceof DatasetValidationError) {
-            throw new NonRetryableError(e.message, e.name);
+          if (error instanceof DatasetValidationError) {
+            throw new NonRetryableError(error.message, error.name);
           }
 
-          throw e;
+          throw error;
         }
 
         await markRunning(db, runId, hash);
@@ -79,14 +79,14 @@ export class ReconWorkflow extends WorkflowEntrypoint<Env, ReconParams> {
       await step.do('complete', async () => {
         await markComplete(db, runId, new Date().toISOString());
       });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
 
       await step.do('mark-errored', async () => {
         await markErrored(db, runId, message);
       });
 
-      throw err;
+      throw error;
     }
   }
 }

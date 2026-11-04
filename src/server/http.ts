@@ -4,7 +4,12 @@ import { HTTPException } from 'hono/http-exception';
 import { ZodError } from 'zod';
 import { guard } from './auth';
 
-export type AppEnv = { Bindings: Env; Variables: { sid: string } };
+export type AppEnv = {
+  Bindings: Env;
+  Variables: {
+    sid: string;
+  };
+};
 
 const ERROR_CODES: Record<number, string> = {
   400: 'invalid_request',
@@ -20,42 +25,71 @@ export function throwOnInvalid(result: {
   success: boolean;
   error?: unknown;
 }): void {
-  if (!result.success) throw result.error;
+  if (!result.success) {
+    throw result.error;
+  }
 }
 
 /** app.onError: HTTPException/ZodError become `{error, ...}` JSON; anything else is a 500 that leaks nothing. */
-export const toJsonError: ErrorHandler<AppEnv> = (err, c) => {
-  if (err instanceof HTTPException) {
-    return c.json(
-      { error: ERROR_CODES[err.status] ?? 'http_error', message: err.message },
-      err.status,
+export const toJsonError: ErrorHandler<AppEnv> = (error, ctx) => {
+  if (error instanceof HTTPException) {
+    return ctx.json(
+      {
+        error: ERROR_CODES[error.status] ?? 'http_error',
+        message: error.message,
+      },
+      error.status,
     );
   }
-  if (err instanceof ZodError) {
-    const issues = err.issues.map((i) => ({
-      path: i.path.join('.'),
-      message: i.message,
+
+  if (error instanceof ZodError) {
+    const issues = error.issues.map((issue) => ({
+      path: issue.path.join('.'),
+      message: issue.message,
     }));
-    return c.json({ error: 'invalid_request', issues }, 400);
+
+    return ctx.json(
+      {
+        error: 'invalid_request',
+        issues,
+      },
+      400,
+    );
   }
+
   console.error(
     JSON.stringify({
       event: 'unhandled_error',
-      message: String(err instanceof Error ? err.stack : err),
+      message: String(error instanceof Error ? error.stack : error),
     }),
   );
-  return c.json({ error: 'internal_error' }, 500);
+
+  return ctx.json(
+    {
+      error: 'internal_error',
+    },
+    500,
+  );
 };
 
 /** `/api/*` middleware: guard() without the agent Origin rule; exposes the cookie sid as `c.get('sid')`. */
-export const requireSession = createMiddleware<AppEnv>(async (c, next) => {
+export const requireSession = createMiddleware<AppEnv>(async (ctx, next) => {
   // A body-less copy: guard's `new Request(req, …)` would take over the body stream the route handler still needs.
   const result = await guard(
-    new Request(c.req.url, { headers: c.req.raw.headers }),
-    c.env,
-    { agent: false },
+    new Request(ctx.req.url, {
+      headers: ctx.req.raw.headers,
+    }),
+    ctx.env,
+    {
+      agent: false,
+    },
   );
-  if (result instanceof Response) return result;
-  c.set('sid', result.headers.get('x-session-id') as string);
+
+  if (result instanceof Response) {
+    return result;
+  }
+
+  ctx.set('sid', result.headers.get('x-session-id') as string);
+
   await next();
 });

@@ -24,7 +24,9 @@ import {
 
 export const MODEL_ID = '@cf/meta/llama-4-scout-17b-16e-instruct';
 
-type ConnState = { sid: string | null };
+type ConnState = {
+  sid: string | null;
+};
 
 export class ChatAgent extends AIChatAgent<Env> {
   maxPersistedMessages = 200;
@@ -37,6 +39,7 @@ export class ChatAgent extends AIChatAgent<Env> {
     connection.setState({
       sid: ctx.request.headers.get('x-session-id'),
     } satisfies ConnState);
+
     return super.onConnect(connection, ctx);
   }
 
@@ -45,7 +48,11 @@ export class ChatAgent extends AIChatAgent<Env> {
     const sid =
       (getCurrentAgent().connection?.state as ConnState | null | undefined)
         ?.sid ?? undefined;
-    if (sid === undefined) console.warn('sid_missing', this.name);
+
+    if (sid === undefined) {
+      console.warn('sid_missing', this.name);
+    }
+
     return sid;
   }
 
@@ -54,7 +61,9 @@ export class ChatAgent extends AIChatAgent<Env> {
   }
 
   createModel(): LanguageModel {
-    return createAI({ binding: this.env.AI })(MODEL_ID);
+    return createAI({
+      binding: this.env.AI,
+    })(MODEL_ID);
   }
 
   async onChatMessage(
@@ -64,9 +73,14 @@ export class ChatAgent extends AIChatAgent<Env> {
     const refusal = await chatPreflight({
       limiter: this.getLimiter(),
       sid: this.resolveSid(),
-      userMessageCount: this.messages.filter((m) => m.role === 'user').length,
+      userMessageCount: this.messages.filter(
+        (message) => message.role === 'user',
+      ).length,
     });
-    if (refusal !== null) return refusalResponse(refusal);
+
+    if (refusal !== null) {
+      return refusalResponse(refusal);
+    }
 
     const tools = createTools(new ReadOnlyDb(this.env.DB));
     const result = streamText({
@@ -77,8 +91,12 @@ export class ChatAgent extends AIChatAgent<Env> {
       stopWhen: stepCountIs(5),
       abortSignal: options?.abortSignal,
     });
+
     return createUIMessageStreamResponse({
-      stream: toUIMessageStream({ stream: result.stream, tools }),
+      stream: toUIMessageStream({
+        stream: result.stream,
+        tools,
+      }),
     });
   }
 }
@@ -88,10 +106,23 @@ function refusalResponse(text: string): Response {
   const id = crypto.randomUUID();
   const stream = createUIMessageStream({
     execute: ({ writer }) => {
-      writer.write({ type: 'text-start', id });
-      writer.write({ type: 'text-delta', id, delta: text });
-      writer.write({ type: 'text-end', id });
+      writer.write({
+        id,
+        type: 'text-start',
+      });
+      writer.write({
+        id,
+        type: 'text-delta',
+        delta: text,
+      });
+      writer.write({
+        id,
+        type: 'text-end',
+      });
     },
   });
-  return createUIMessageStreamResponse({ stream });
+
+  return createUIMessageStreamResponse({
+    stream,
+  });
 }
